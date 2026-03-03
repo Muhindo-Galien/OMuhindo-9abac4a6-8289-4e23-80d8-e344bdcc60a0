@@ -1,0 +1,29 @@
+{
+  "name": "api",
+  "projectType": "application",
+  "sourceRoot": "apps/api/src",
+  "targets": {
+    "build": {
+      "executor": "@nx/webpack:webpack",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/apps/api",
+        "webpackConfig": "apps/api/webpack.config.js"
+      }
+    },
+    "serve": {
+      "executor": "@nx/js:node",
+      "options": {
+        "buildTarget": "api:build",
+        "inspect": false
+      }
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
+      "options": {
+        "jestConfig": "apps/api/jest.config.ts"
+      }
+    }
+  }
+}

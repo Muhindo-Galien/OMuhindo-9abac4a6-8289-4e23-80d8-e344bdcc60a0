@@ -1,0 +1,139 @@
+<!-- Test TailwindCSS Design System -->
+<div class="min-h-screen bg-gray-50">
+  <!-- Header -->
+  <header class="bg-white shadow-sm border-b border-gray-200">
+    <div class="container-padding py-4">
+      <h1 class="text-2xl font-bold text-gray-900">Task Management Dashboard</h1>
+      <p class="text-gray-600 mt-1">Design System Test</p>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="container-padding section-spacing">
+    <!-- Color System Test -->
+    <section class="mb-8">
+      <h2 class="text-xl font-semibold mb-4">Color System</h2>
+      
+      <!-- Status Colors -->
+      <div class="flex flex-wrap gap-3 mb-4">
+        <span class="status-badge bg-status-todo text-white">TODO</span>
+        <span class="status-badge bg-status-progress text-white">IN PROGRESS</span>
+        <span class="status-badge bg-status-review text-white">REVIEW</span>
+        <span class="status-badge bg-status-done text-white">DONE</span>
+        <span class="status-badge bg-status-blocked text-white">BLOCKED</span>
+      </div>
+      
+      <!-- Priority Indicators -->
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2">
+          <div class="priority-indicator bg-priority-low"></div>
+          <span class="text-sm">Low</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="priority-indicator bg-priority-medium"></div>
+          <span class="text-sm">Medium</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="priority-indicator bg-priority-high"></div>
+          <span class="text-sm">High</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="priority-indicator bg-priority-urgent"></div>
+          <span class="text-sm">Urgent</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Task Cards Test -->
+    <section class="mb-8">
+      <h2 class="text-xl font-semibold mb-4">Task Cards</h2>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Task Card 1 -->
+        <div class="task-card task-card-hover">
+          <div class="flex-between mb-3">
+            <h3 class="font-semibold text-gray-900">Implement Authentication</h3>
+            <div class="priority-indicator bg-priority-high"></div>
+          </div>
+          <p class="text-gray-600 mb-4">Set up JWT authentication with role-based access control</p>
+          <div class="flex-between">
+            <span class="status-badge bg-status-progress text-white">In Progress</span>
+            <span class="text-xs text-gray-500">Due: Dec 15</span>
+          </div>
+        </div>
+
+        <!-- Task Card 2 -->
+        <div class="task-card task-card-hover">
+          <div class="flex-between mb-3">
+            <h3 class="font-semibold text-gray-900">Design UI Components</h3>
+            <div class="priority-indicator bg-priority-medium"></div>
+          </div>
+          <p class="text-gray-600 mb-4">Create reusable Angular Material components with TailwindCSS</p>
+          <div class="flex-between">
+            <span class="status-badge bg-status-done text-white">Done</span>
+            <span class="text-xs text-gray-500">Completed</span>
+          </div>
+        </div>
+
+        <!-- Task Card 3 -->
+        <div class="task-card task-card-hover">
+          <div class="flex-between mb-3">
+            <h3 class="font-semibold text-gray-900">API Integration</h3>
+            <div class="priority-indicator bg-priority-low"></div>
+          </div>
+          <p class="text-gray-600 mb-4">Connect frontend with NestJS backend API endpoints</p>
+          <div class="flex-between">
+            <span class="status-badge bg-status-todo text-white">TODO</span>
+            <span class="text-xs text-gray-500">Due: Dec 20</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Layout Test -->
+    <section class="mb-8">
+      <h2 class="text-xl font-semibold mb-4">Responsive Layout</h2>
+      
+      <div class="bg-white rounded-lg shadow-task-card p-6">
+        <div class="grid grid-cols-1 lg:grid-cols-sidebar-main gap-6">
+          <aside class="bg-gray-50 rounded-lg p-4">
+            <h3 class="font-medium mb-3">Sidebar</h3>
+            <ul class="space-y-2">
+              <li class="text-sm text-gray-600">Dashboard</li>
+              <li class="text-sm text-gray-600">Tasks</li>
+              <li class="text-sm text-gray-600">Projects</li>
+            </ul>
+          </aside>
+          
+          <main class="space-y-4">
+            <div class="flex-between">
+              <h3 class="font-medium">Main Content Area</h3>
+              <div class="flex gap-2">
+                <span class="status-badge bg-primary-100 text-primary-800">Filter</span>
+                <span class="status-badge bg-secondary-100 text-secondary-800">Sort</span>
+              </div>
+            </div>
+            <p class="text-gray-600">This demonstrates the responsive sidebar layout that collapses on mobile devices.</p>
+          </main>
+        </div>
+      </div>
+    </section>
+
+    <!-- Animation Test -->
+    <section>
+      <h2 class="text-xl font-semibold mb-4">Animations</h2>
+      
+      <div class="space-y-4">
+        <div class="task-card animate-fade-in">
+          <p class="text-center text-gray-600">This card fades in smoothly</p>
+        </div>
+        
+        <div class="task-card animate-slide-in">
+          <p class="text-center text-gray-600">This card slides in from the left</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<router-outlet></router-outlet>
