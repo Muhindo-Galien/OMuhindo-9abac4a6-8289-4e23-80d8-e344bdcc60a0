@@ -4,6 +4,7 @@ import { Observable, throwError, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { CreateTaskDto, UpdateTaskDto, TaskResponseDto, TaskStatus, TaskPriority } from '@data';
 import { environment } from '../../environments/environment';
+import { OrgContextService } from './org-context.service';
 
 export interface TaskFilters {
   search?: string;
@@ -25,12 +26,15 @@ export interface BulkUpdateTask {
 })
 export class TaskService {
   private http = inject(HttpClient);
-  
+  private orgContext = inject(OrgContextService);
+
   private readonly API_URL = environment.apiUrl;
 
   getTasks(): Observable<TaskResponseDto[]> {
-    // Default to sorting by sortOrder to respect drag-and-drop positioning
-    return this.http.get<TaskResponseDto[]>(`${this.API_URL}/tasks?sortBy=sortOrder&sortOrder=ASC`).pipe(
+    const orgId = this.orgContext.getCurrentOrgId();
+    const params = new URLSearchParams({ sortBy: 'sortOrder', sortOrder: 'ASC' });
+    if (orgId) params.set('organizationId', orgId);
+    return this.http.get<TaskResponseDto[]>(`${this.API_URL}/tasks?${params.toString()}`).pipe(
       catchError(this.handleError)
     );
   }

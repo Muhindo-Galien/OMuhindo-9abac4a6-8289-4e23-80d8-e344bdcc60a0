@@ -11,8 +11,8 @@ export const authInterceptor: HttpInterceptorFn = (req: HttpRequest<any>, next: 
 
   console.log('Intercepting request:', req.url);
   
-  // Skip authentication for login requests
-  if (req.url.includes('/auth/login')) {
+  // Skip auth header for login and register (no token yet)
+  if (req.url.includes('/auth/login') || req.url.includes('/auth/register')) {
     return next(req);
   }
 

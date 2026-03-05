@@ -3,7 +3,13 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
 import { catchError, tap, map } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
-import { AuthResponseDto, LoginDto, UserProfile, RoleType } from '@data';
+import {
+  AuthResponseDto,
+  LoginDto,
+  RegisterDto,
+  UserProfile,
+  RoleType,
+} from '@data';
 
 export interface User extends UserProfile {
   organizationName?: string;
@@ -40,8 +46,18 @@ export class AuthService {
     return this.http
       .post<AuthResponseDto>(`${this.API_URL}/auth/login`, loginData)
       .pipe(
-        tap(response => {
-          console.log('Login successful, storing token and user data');
+        tap((response) => {
+          this.setSession(response);
+        }),
+        catchError(this.handleError)
+      );
+  }
+
+  register(dto: RegisterDto): Observable<AuthResponseDto> {
+    return this.http
+      .post<AuthResponseDto>(`${this.API_URL}/auth/register`, dto)
+      .pipe(
+        tap((response) => {
           this.setSession(response);
         }),
         catchError(this.handleError)
@@ -49,8 +65,28 @@ export class AuthService {
   }
 
   logout(): void {
-    console.log('Logging out user');
     this.clearSession();
+  }
+
+  /** Update token after e.g. creating an org; merges org_roles from new JWT into stored user. */
+  updateSessionWithToken(access_token: string): void {
+    const token = this.getToken();
+    if (!access_token) return;
+    try {
+      localStorage.setItem(this.TOKEN_KEY, access_token);
+      const payload = this.parseJwt(access_token);
+      const existing = this.getUserFromStorage();
+      if (existing && payload) {
+        const updated: User = {
+          ...existing,
+          org_roles: payload.org_roles ?? existing.org_roles,
+        };
+        localStorage.setItem(this.USER_KEY, JSON.stringify(updated));
+        this.currentUserSubject.next(updated);
+      }
+    } catch (error) {
+      console.error('Error updating session with token:', error);
+    }
   }
 
   getCurrentUser(): User | null {

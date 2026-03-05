@@ -1,26 +1,39 @@
 import { Route } from '@angular/router';
 import { AuthGuard } from './guards/auth.guard';
+import { GuestGuard } from './guards/guest.guard';
+import { OrgSelectedGuard } from './guards/org-selected.guard';
+
+const loginRoute: Route = {
+  canActivate: [GuestGuard],
+  loadComponent: () =>
+    import('./auth/login.component').then(c => c.LoginComponent),
+};
+
+const registerRoute: Route = {
+  canActivate: [GuestGuard],
+  loadComponent: () =>
+    import('./auth/register.component').then(c => c.RegisterComponent),
+};
 
 export const appRoutes: Route[] = [
+  { path: '', redirectTo: '/orgs', pathMatch: 'full' },
+  { path: 'login', ...loginRoute },
+  { path: 'register', ...registerRoute },
   {
-    path: '',
-    redirectTo: '/dashboard',
-    pathMatch: 'full',
-  },
-  {
-    path: 'login',
+    path: 'orgs',
+    canActivate: [AuthGuard],
     loadComponent: () =>
-      import('./auth/login.component').then(c => c.LoginComponent),
+      import('./orgs/org-list.component').then(c => c.OrgListComponent),
   },
   {
     path: 'dashboard',
-    canActivate: [AuthGuard],
+    canActivate: [AuthGuard, OrgSelectedGuard],
     loadComponent: () =>
       import('./tasks/task-board.component').then(c => c.TaskBoardComponent),
   },
   {
     path: 'tasks',
-    canActivate: [AuthGuard],
+    canActivate: [AuthGuard, OrgSelectedGuard],
     children: [
       {
         path: '',
@@ -43,12 +56,9 @@ export const appRoutes: Route[] = [
   },
   {
     path: 'audit-logs',
-    canActivate: [AuthGuard],
+    canActivate: [AuthGuard, OrgSelectedGuard],
     loadComponent: () =>
       import('./audit/audit-logs.component').then(c => c.AuditLogsComponent),
   },
-  {
-    path: '**',
-    redirectTo: '/dashboard',
-  },
+  { path: '**', redirectTo: '/orgs' },
 ];

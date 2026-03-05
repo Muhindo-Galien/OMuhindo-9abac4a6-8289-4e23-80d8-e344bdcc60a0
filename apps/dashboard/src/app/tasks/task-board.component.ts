@@ -7,6 +7,7 @@ import { TaskCardComponent } from './task-card.component';
 import { TaskFormComponent } from './task-form.component';
 import { TaskFiltersComponent } from './task-filters.component';
 import { TaskService, BulkUpdateTask } from '../services/task.service';
+import { OrgContextService } from '../services/org-context.service';
 import { CreateTaskDto, UpdateTaskDto, TaskResponseDto, TaskStatus } from '@data';
 
 interface TaskColumn {
@@ -203,6 +204,7 @@ interface TaskColumn {
 })
 export class TaskBoardComponent implements OnInit {
   private taskService = inject(TaskService);
+  private orgContext = inject(OrgContextService);
   private router = inject(Router);
 
   // Component state
@@ -528,8 +530,10 @@ export class TaskBoardComponent implements OnInit {
         }
       });
     } else {
-      // Create new task
-      this.taskService.createTask(taskData as CreateTaskDto).subscribe({
+      // Create new task (scope to current org)
+      const orgId = this.orgContext.getCurrentOrgId();
+      const createDto: CreateTaskDto = { ...(taskData as CreateTaskDto), organizationId: orgId! };
+      this.taskService.createTask(createDto).subscribe({
         next: (newTask) => {
           console.log('Task created:', newTask);
           this.closeTaskModal();

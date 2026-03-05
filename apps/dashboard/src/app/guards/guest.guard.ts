@@ -6,13 +6,17 @@ import {
   RouterStateSnapshot,
 } from '@angular/router';
 import { Observable } from 'rxjs';
-import { take, map, tap } from 'rxjs/operators';
+import { map, take } from 'rxjs/operators';
 import { AuthService } from '../services/auth.service';
 
+/**
+ * Use on login (guest-only) routes.
+ * If the user is already authenticated, redirects to returnUrl or /dashboard and blocks the route.
+ */
 @Injectable({
   providedIn: 'root',
 })
-export class AuthGuard implements CanActivate {
+export class GuestGuard implements CanActivate {
   private authService = inject(AuthService);
   private router = inject(Router);
 
@@ -22,14 +26,15 @@ export class AuthGuard implements CanActivate {
   ): Observable<boolean> {
     return this.authService.isAuthenticated$.pipe(
       take(1),
-      tap((isAuthenticated) => {
-        if (!isAuthenticated) {
-          this.router.navigate(['/login'], {
-            queryParams: { returnUrl: state.url },
-          });
+      map((authenticated) => {
+        if (authenticated) {
+          const returnUrl =
+            route.queryParamMap.get('returnUrl') || '/dashboard';
+          this.router.navigateByUrl(returnUrl);
+          return false;
         }
-      }),
-      map((isAuthenticated) => isAuthenticated)
+        return true;
+      })
     );
   }
-} 
+}

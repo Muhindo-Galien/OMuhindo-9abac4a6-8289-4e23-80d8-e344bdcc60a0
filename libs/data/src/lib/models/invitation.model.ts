@@ -7,7 +7,7 @@ import {
   CreateDateColumn,
   Index,
 } from 'typeorm';
-import { Organization } from './organization.model';
+import type { Organization } from './organization.model';
 import { User } from './user.model';
 import { RoleType } from './role.model';
 
@@ -31,7 +31,8 @@ export class Invitation {
   @Column({ type: 'uuid' })
   organizationId: string;
 
-  @ManyToOne(() => Organization, { onDelete: 'CASCADE' })
+  /** Lazy ref to avoid circular dependency with organization.model (see NestJS circular dependency docs). */
+  @ManyToOne('Organization', { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'organizationId' })
   organization: Organization;
 

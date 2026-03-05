@@ -61,7 +61,15 @@ module.exports = {
         success: '#10b981',
         warning: '#f59e0b',
         error: '#ef4444',
-        info: '#3b82f6'
+        info: '#3b82f6',
+        // Turbovets logo palette (vets.png)
+        turbovets: {
+          navy: '#0D2A57',   // deep blue
+          red: '#B92134',    // deep red
+          'sky': '#C4D4E7',  // light blue-grey
+          'sky-light': '#E8EEF4',
+          'bg': '#F0F6FC'     // page background
+        }
       },
       
       // Custom spacing for consistent layout
@@ -74,7 +82,7 @@ module.exports = {
       
       // Typography system
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Poppins', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'Consolas', 'monospace']
       },
       fontSize: {

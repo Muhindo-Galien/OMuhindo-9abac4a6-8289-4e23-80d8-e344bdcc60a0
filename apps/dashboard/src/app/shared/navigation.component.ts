@@ -2,7 +2,9 @@ import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { AuthService } from '../services/auth.service';
+import { OrgContextService } from '../services/org-context.service';
 import { RoleType } from '@data';
+import { getInitialsForUser } from './utils/string.utils';
 
 @Component({
   selector: 'app-navigation',
@@ -21,6 +23,13 @@ import { RoleType } from '@data';
             <!-- Main Navigation -->
             <div class="hidden md:block ml-10">
               <div class="flex items-baseline space-x-4">
+                <a
+                  routerLink="/orgs"
+                  routerLinkActive="bg-primary-100 text-primary-700"
+                  class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors duration-200"
+                >
+                  Sites
+                </a>
                 <a
                   routerLink="/dashboard"
                   routerLinkActive="bg-primary-100 text-primary-700"
@@ -64,12 +73,10 @@ import { RoleType } from '@data';
             <div class="hidden md:flex items-center mr-4">
               <div class="text-right mr-3">
                 <div class="text-sm font-medium text-gray-900">{{ getCurrentUser()?.email }}</div>
-                <div class="text-xs text-gray-500">{{ getCurrentUser()?.role }} • {{ getCurrentUser()?.organizationName }}</div>
+                <div class="text-xs text-gray-500">{{ getCurrentUser()?.role }}<ng-container *ngIf="getCurrentOrgName()"> • {{ getCurrentOrgName() }}</ng-container></div>
               </div>
-              <div class="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
-                <span class="text-primary-700 text-sm font-medium">
-                  {{ getUserInitials() }}
-                </span>
+              <div class="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0" [attr.aria-label]="getCurrentUser()?.email">
+                <span class="text-primary-700 text-sm font-medium">{{ getUserInitials() }}</span>
               </div>
             </div>
 
@@ -104,6 +111,14 @@ import { RoleType } from '@data';
         <!-- Mobile menu -->
         <div class="md:hidden" [class.hidden]="!mobileMenuOpen">
           <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3 border-t border-gray-200">
+            <a
+              routerLink="/orgs"
+              routerLinkActive="bg-primary-100 text-primary-700"
+              class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+              (click)="mobileMenuOpen = false"
+            >
+              Sites
+            </a>
             <a
               routerLink="/dashboard"
               routerLinkActive="bg-primary-100 text-primary-700"
@@ -145,7 +160,7 @@ import { RoleType } from '@data';
             <!-- Mobile User Info -->
             <div class="px-3 py-2 border-t border-gray-200 mt-3">
               <div class="text-sm font-medium text-gray-900">{{ getCurrentUser()?.email }}</div>
-              <div class="text-xs text-gray-500">{{ getCurrentUser()?.role }} • {{ getCurrentUser()?.organizationName }}</div>
+              <div class="text-xs text-gray-500">{{ getCurrentUser()?.role }}<ng-container *ngIf="getCurrentOrgName()"> • {{ getCurrentOrgName() }}</ng-container></div>
             </div>
           </div>
         </div>
@@ -160,6 +175,7 @@ import { RoleType } from '@data';
 })
 export class NavigationComponent {
   private authService = inject(AuthService);
+  private orgContext = inject(OrgContextService);
   private router = inject(Router);
 
   mobileMenuOpen = false;
@@ -169,11 +185,8 @@ export class NavigationComponent {
   }
 
   getUserInitials(): string {
-    const user = this.getCurrentUser();
-    if (!user?.email) return '??';
-    
-    const emailParts = user.email.split('@')[0];
-    return emailParts.substring(0, 2).toUpperCase();
+    const u = this.getCurrentUser();
+    return getInitialsForUser(u?.firstName, u?.lastName, u?.email);
   }
 
   isAdmin(): boolean {
@@ -188,10 +201,19 @@ export class NavigationComponent {
 
   canViewAuditLogs(): boolean {
     const user = this.getCurrentUser();
-    return user?.role === RoleType.OWNER || user?.role === RoleType.ADMIN;
+    const orgRoles = user?.org_roles;
+    if (!orgRoles || typeof orgRoles !== 'object') return false;
+    const currentOrgId = this.orgContext.getCurrentOrgId();
+    const role = currentOrgId ? orgRoles[currentOrgId] : null;
+    return role === RoleType.OWNER || role === RoleType.ADMIN;
+  }
+
+  getCurrentOrgName(): string | null {
+    return this.orgContext.getCurrentOrg()?.name ?? null;
   }
 
   logout(): void {
+    this.orgContext.clearCurrentOrg();
     this.authService.logout();
     this.router.navigate(['/login']);
   }

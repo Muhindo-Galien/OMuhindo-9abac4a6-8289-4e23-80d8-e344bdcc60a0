@@ -6,13 +6,13 @@ import {
   FormGroup,
   Validators,
 } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink],
   template: `
     <div
       class="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8"
@@ -148,6 +148,16 @@ import { AuthService } from '../services/auth.service';
             </button>
           </div>
 
+          <p class="text-center text-sm text-gray-600">
+            Don't have an account?
+            <a
+              routerLink="/register"
+              class="font-medium text-primary-600 hover:text-primary-500"
+            >
+              Create one
+            </a>
+          </p>
+
           <!-- Demo Credentials -->
           <div class="mt-6 p-4 bg-blue-50 rounded-md border border-blue-200">
             <h3 class="text-sm font-medium text-blue-800 mb-2">
@@ -181,6 +191,7 @@ export class LoginComponent {
   private fb = inject(FormBuilder);
   private authService = inject(AuthService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
 
   loginForm: FormGroup;
   isLoading = false;
@@ -203,7 +214,9 @@ export class LoginComponent {
       this.authService.login(email, password).subscribe({
         next: response => {
           console.log('Login successful:', response);
-          this.router.navigate(['/dashboard']);
+          const returnUrl =
+            this.route.snapshot.queryParamMap.get('returnUrl') || '/orgs';
+          this.router.navigateByUrl(returnUrl);
         },
         error: error => {
           console.error('Login failed:', error);
