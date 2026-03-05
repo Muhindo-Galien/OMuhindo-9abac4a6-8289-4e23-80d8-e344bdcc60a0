@@ -28,6 +28,13 @@ export class OrgContextService {
     return this.currentOrgSubject.value?.id ?? null;
   }
 
+  /** Id of the site (parent org) under which spaces are created. When in a space, returns its parent; when in a site, returns the site. */
+  getEffectiveParentId(): string | null {
+    const org = this.currentOrgSubject.value;
+    if (!org) return null;
+    return org.parentId ?? org.id;
+  }
+
   setCurrentOrg(org: CurrentOrg): void {
     this.currentOrgSubject.next(org);
     try {

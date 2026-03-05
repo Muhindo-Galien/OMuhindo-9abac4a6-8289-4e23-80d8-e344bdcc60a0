@@ -199,14 +199,14 @@ export class AppHeaderComponent {
     return getInitialsForUser(u?.firstName, u?.lastName, u?.email);
   }
 
-  /** Only owner and admin can create space (child org). Uses org_roles from login/register; fallback to memberships. */
+  /** Show Create space if user has admin/owner on the site (effective parent). Visible regardless of selected space. */
   canCreateChild(): boolean {
-    const orgId = this.orgContext.getCurrentOrgId();
-    if (!orgId) return false;
+    const parentId = this.orgContext.getEffectiveParentId();
+    if (!parentId) return false;
     const u = this.authService.getCurrentUser();
     const role =
-      u?.org_roles?.[orgId] ??
-      u?.memberships?.find((m) => m.organizationId === orgId)?.role;
+      u?.org_roles?.[parentId] ??
+      u?.memberships?.find((m) => m.organizationId === parentId)?.role;
     return role === RoleType.ADMIN || role === RoleType.OWNER;
   }
 }

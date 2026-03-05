@@ -109,7 +109,7 @@ export class AppLayoutComponent {
   }
 
   onCreateChildSubmit(value: CreateOrgFormValue): void {
-    const parentId = this.orgContext.getCurrentOrgId();
+    const parentId = this.orgContext.getEffectiveParentId();
     if (!parentId) return;
     this.createLoading.set(true);
     this.createError.set(null);

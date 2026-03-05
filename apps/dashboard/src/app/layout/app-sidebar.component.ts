@@ -259,14 +259,14 @@ export class AppSidebarComponent implements OnInit {
     this.router.navigate(['/app/dashboard']);
   }
 
-  /** Only owner and admin can create space (child org). Uses org_roles from login/register response; fallback to memberships. */
+  /** Show Create space if user has admin/owner on the site (effective parent). Visible regardless of selected space so the button does not disappear. */
   canCreateChild(): boolean {
-    const orgId = this.orgContext.getCurrentOrgId();
-    if (!orgId) return false;
+    const parentId = this.orgContext.getEffectiveParentId();
+    if (!parentId) return false;
     const user = this.authService.getCurrentUser();
     const role =
-      user?.org_roles?.[orgId] ??
-      user?.memberships?.find((m) => m.organizationId === orgId)?.role;
+      user?.org_roles?.[parentId] ??
+      user?.memberships?.find((m) => m.organizationId === parentId)?.role;
     return role === RoleType.ADMIN || role === RoleType.OWNER;
   }
 }

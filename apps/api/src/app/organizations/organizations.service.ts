@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -78,6 +79,9 @@ export class OrganizationsService {
     dto: CreateOrganizationDto,
     userId: string
   ): Promise<OrganizationResponseDto> {
+    if (dto.parentId) {
+      await this.validateParentId(dto.parentId);
+    }
     const org = this.orgRepository.create({
       name: dto.name,
       description: dto.description,
@@ -229,6 +233,7 @@ export class OrganizationsService {
     dto: CreateOrganizationDto,
     userId: string
   ): Promise<OrganizationResponseDto> {
+    await this.validateParentId(parentId);
     const hasAccess = await this.effectiveRoleService.hasMinimumRole(
       userId,
       parentId,
@@ -308,6 +313,25 @@ export class OrganizationsService {
         success: true,
       }
     );
+  }
+
+  /**
+   * Validates parentId: must exist and must be a root org (no parent).
+   * Prevents self-assign and using a non-existent or child org as parent.
+   */
+  private async validateParentId(parentId: string): Promise<void> {
+    const parent = await this.orgRepository.findOne({
+      where: { id: parentId },
+      select: ['id', 'parentId'],
+    });
+    if (!parent) {
+      throw new NotFoundException('Parent organization not found');
+    }
+    if (parent.parentId != null) {
+      throw new BadRequestException(
+        'Parent must be a root organization (site). Cannot use a space as parent.'
+      );
+    }
   }
 
   private async deleteDescendants(parentId: string): Promise<void> {
