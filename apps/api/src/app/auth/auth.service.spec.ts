@@ -96,21 +96,12 @@ describe('AuthApplicationService', () => {
       expect(result.user).not.toHaveProperty('organizationId');
     });
 
-    it('should register and create workspace when createOrgName provided', async () => {
-      const savedOrg = {
-        id: 'org-1',
-        name: 'My Workspace',
-        parentId: undefined,
-      };
+    it('should not create org on register when createOrgName provided (ignored for security)', async () => {
       userRepo.findOne.mockResolvedValue(null);
       userRepo.create.mockReturnValue(mockUser);
       userRepo.save.mockResolvedValue(mockUser);
-      orgRepo.create.mockReturnValue(savedOrg);
-      orgRepo.save.mockResolvedValue(savedOrg);
-      memberRepo.create.mockReturnValue({});
-      memberRepo.save.mockResolvedValue({});
 
-      await service.register({
+      const result = await service.register({
         email: 'u@test.com',
         password: 'pass1234',
         firstName: 'F',
@@ -118,12 +109,11 @@ describe('AuthApplicationService', () => {
         createOrgName: 'My Workspace',
       });
 
-      expect(orgRepo.save).toHaveBeenCalled();
-      expect(memberRepo.save).toHaveBeenCalled();
-      expect(authService.login).toHaveBeenCalledWith(
-        mockUser,
-        expect.objectContaining({ [savedOrg.id]: 'owner' })
-      );
+      expect(orgRepo.create).not.toHaveBeenCalled();
+      expect(orgRepo.save).not.toHaveBeenCalled();
+      expect(memberRepo.save).not.toHaveBeenCalled();
+      expect(authService.login).toHaveBeenCalledWith(mockUser, {});
+      expect(result.user.role).toBe('user');
     });
 
     it('should throw ConflictException when email exists', async () => {

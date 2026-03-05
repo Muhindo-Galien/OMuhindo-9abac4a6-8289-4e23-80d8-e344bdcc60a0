@@ -140,24 +140,6 @@ import { AuthService } from '../services/auth.service';
               }
             </div>
 
-            <div>
-              <label
-                for="createOrgName"
-                class="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Create a workspace (optional)
-              </label>
-              <input
-                id="createOrgName"
-                type="text"
-                formControlName="createOrgName"
-                class="relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
-                placeholder="My Workspace"
-              />
-              <p class="mt-1 text-xs text-gray-500">
-                You can create an organization later from the dashboard.
-              </p>
-            </div>
           </div>
 
           @if (errorMessage) {
@@ -248,7 +230,6 @@ export class RegisterComponent {
           Validators.maxLength(100),
         ],
       ],
-      createOrgName: [''],
     });
   }
 
@@ -263,7 +244,6 @@ export class RegisterComponent {
         password: value.password,
         firstName: value.firstName.trim(),
         lastName: value.lastName.trim(),
-        createOrgName: value.createOrgName?.trim() || undefined,
         inviteToken:
           this.route.snapshot.queryParamMap.get('token') || undefined,
       };

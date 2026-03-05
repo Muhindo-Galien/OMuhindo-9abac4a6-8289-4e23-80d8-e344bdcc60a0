@@ -6,9 +6,11 @@ import {
 import { OrganizationMembershipService } from './organization-membership.service';
 
 /**
- * Runs after JwtAuthGuard. Enriches request.user.org_roles from the database
- * so that OrgRoleGuard can allow access to orgs the user just created or joined
- * without requiring a token refresh.
+ * Runs after JwtAuthGuard. Sets request.user.org_roles from the database using
+ * effective roles (direct + inherited). Ensures OrgRoleGuard sees parent→child
+ * inheritance: owner/admin/viewer on parent implies same role on all children;
+ * direct child role overrides. Single source of truth so access works without
+ * token refresh and child orgs (spaces) are allowed when user has role on parent (site).
  */
 @Injectable()
 export class EnrichOrgRolesGuard implements CanActivate {
@@ -19,8 +21,8 @@ export class EnrichOrgRolesGuard implements CanActivate {
     const user = request.user;
     if (!user?.id) return true;
 
-    const orgRoles = await this.membershipService.getOrgRolesForUser(user.id);
-    request.user.org_roles = { ...request.user.org_roles, ...orgRoles };
+    const orgRoles = await this.membershipService.getEffectiveOrgRolesForUser(user.id);
+    request.user.org_roles = orgRoles;
     return true;
   }
 }

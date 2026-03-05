@@ -40,7 +40,7 @@ export class AuthApplicationService {
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponseDto> {
-    const { email, password, firstName, lastName, createOrgName } = registerDto;
+    const { email, password, firstName, lastName } = registerDto;
 
     const existing = await this.userRepository.findOne({ where: { email } });
     if (existing)
@@ -58,21 +58,6 @@ export class AuthApplicationService {
     const savedUser = await this.userRepository.save(user);
 
     let orgRoles: Record<string, RoleType> = {};
-
-    if (createOrgName?.trim()) {
-      const org = this.organizationRepository.create({
-        name: createOrgName.trim(),
-        parentId: undefined,
-      });
-      const savedOrg = await this.organizationRepository.save(org);
-      const membership = this.membershipRepository.create({
-        userId: savedUser.id,
-        organizationId: savedOrg.id,
-        role: RoleType.OWNER,
-      });
-      await this.membershipRepository.save(membership);
-      orgRoles[savedOrg.id] = RoleType.OWNER;
-    }
 
     if (registerDto.inviteToken?.trim()) {
       const inv = await this.invitationRepository.findOne({
@@ -118,7 +103,7 @@ export class AuthApplicationService {
       savedUser.id,
       AuditAction.REGISTER,
       AuditResource.AUTH,
-      { details: { email, createOrg: !!createOrgName }, success: true }
+      { details: { email }, success: true }
     );
 
     return { access_token: tokenResult.access_token, user: profile };

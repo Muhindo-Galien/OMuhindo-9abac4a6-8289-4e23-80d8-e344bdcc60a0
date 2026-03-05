@@ -33,7 +33,7 @@ export interface CreateOrganizationResponse {
 export class OrganizationsController {
   constructor(
     private organizationsService: OrganizationsService,
-    private authApplicationService: AuthApplicationService,
+    private authApplicationService: AuthApplicationService
   ) {}
 
   @Post()
@@ -54,35 +54,15 @@ export class OrganizationsController {
     return this.organizationsService.findMyOrganizations(user.id);
   }
 
-  @Get(':orgId')
+  // More specific routes first so they are not matched by :orgId
+  @Get(':orgId/children')
   @UseGuards(OrgRoleGuard)
   @OrgRoles(RoleType.VIEWER, RoleType.ADMIN, RoleType.OWNER)
-  async findOne(
+  async findChildren(
     @Param('orgId') orgId: string,
     @CurrentUser() user: { id: string }
-  ): Promise<OrganizationResponseDto> {
-    return this.organizationsService.findOne(orgId, user.id);
-  }
-
-  @Put(':orgId')
-  @UseGuards(OrgRoleGuard)
-  @OrgRoles(RoleType.ADMIN, RoleType.OWNER)
-  async update(
-    @Param('orgId') orgId: string,
-    @Body() dto: UpdateOrganizationDto,
-    @CurrentUser() user: { id: string }
-  ): Promise<OrganizationResponseDto> {
-    return this.organizationsService.update(orgId, dto, user.id);
-  }
-
-  @Delete(':orgId')
-  @UseGuards(OrgRoleGuard)
-  @OrgRoles(RoleType.OWNER)
-  async delete(
-    @Param('orgId') orgId: string,
-    @CurrentUser() user: { id: string }
-  ): Promise<void> {
-    return this.organizationsService.delete(orgId, user.id);
+  ): Promise<OrganizationResponseDto[]> {
+    return this.organizationsService.findChildren(orgId, user.id);
   }
 
   @Post(':orgId/children')
@@ -121,5 +101,36 @@ export class OrganizationsController {
       targetUserId,
       user.id
     );
+  }
+
+  @Get(':orgId')
+  @UseGuards(OrgRoleGuard)
+  @OrgRoles(RoleType.VIEWER, RoleType.ADMIN, RoleType.OWNER)
+  async findOne(
+    @Param('orgId') orgId: string,
+    @CurrentUser() user: { id: string }
+  ): Promise<OrganizationResponseDto> {
+    return this.organizationsService.findOne(orgId, user.id);
+  }
+
+  @Put(':orgId')
+  @UseGuards(OrgRoleGuard)
+  @OrgRoles(RoleType.ADMIN, RoleType.OWNER)
+  async update(
+    @Param('orgId') orgId: string,
+    @Body() dto: UpdateOrganizationDto,
+    @CurrentUser() user: { id: string }
+  ): Promise<OrganizationResponseDto> {
+    return this.organizationsService.update(orgId, dto, user.id);
+  }
+
+  @Delete(':orgId')
+  @UseGuards(OrgRoleGuard)
+  @OrgRoles(RoleType.OWNER)
+  async delete(
+    @Param('orgId') orgId: string,
+    @CurrentUser() user: { id: string }
+  ): Promise<void> {
+    return this.organizationsService.delete(orgId, user.id);
   }
 }

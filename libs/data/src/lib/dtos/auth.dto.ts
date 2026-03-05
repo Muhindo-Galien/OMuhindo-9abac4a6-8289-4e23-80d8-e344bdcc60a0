@@ -17,7 +17,7 @@ export class LoginDto {
   password: string;
 }
 
-// Register DTO – no org, no role. Optional: create workspace in same request.
+// Register DTO – user only; no org created on signup (create orgs after login from dashboard).
 export class RegisterDto {
   @IsEmail()
   email: string;
@@ -36,7 +36,7 @@ export class RegisterDto {
   @MaxLength(100)
   lastName: string;
 
-  /** If set, create a parent org (workspace) and add user as owner in same transaction. */
+  /** Ignored: org creation on register is disabled for security. Create orgs after login. */
   @IsOptional()
   @IsString()
   @MinLength(1)
@@ -59,7 +59,7 @@ export interface JwtPayload {
   exp?: number;
 }
 
-// Auth response: token + user; org_roles included when user has memberships (e.g. after refresh or register with createOrgName).
+// Auth response: token + user; org_roles included when user has memberships (e.g. after refresh or invite acceptance).
 export class AuthResponseDto {
   access_token: string;
   user: UserProfile;

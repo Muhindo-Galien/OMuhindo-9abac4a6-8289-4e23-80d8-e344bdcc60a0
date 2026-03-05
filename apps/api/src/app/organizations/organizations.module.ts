@@ -15,7 +15,7 @@ import { EnrichOrgRolesGuard } from './enrich-org-roles.guard';
   imports: [
     TypeOrmModule.forFeature([Organization, OrganizationMember, User]),
     forwardRef(() => AuditModule),
-    AuthModule,
+    forwardRef(() => AuthModule),
   ],
   exports: [
     OrganizationsService,

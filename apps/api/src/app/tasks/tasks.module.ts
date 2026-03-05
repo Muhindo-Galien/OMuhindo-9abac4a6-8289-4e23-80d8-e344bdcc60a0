@@ -5,6 +5,7 @@ import { AuditModule } from '../audit/audit.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { TasksController } from './tasks.controller';
 import { TasksService } from './tasks.service';
+import { RequireSpaceOrgGuard } from './require-space-org.guard';
 
 @Module({
   imports: [
@@ -13,7 +14,7 @@ import { TasksService } from './tasks.service';
     OrganizationsModule,
   ],
   controllers: [TasksController],
-  providers: [TasksService],
+  providers: [TasksService, RequireSpaceOrgGuard],
   exports: [TasksService],
 })
 export class TasksModule {}

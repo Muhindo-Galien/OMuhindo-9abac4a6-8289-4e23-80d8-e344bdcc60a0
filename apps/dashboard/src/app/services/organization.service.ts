@@ -37,6 +37,32 @@ export class OrganizationService {
       .pipe(catchError(this.handleError));
   }
 
+  /** GET /organizations/:orgId/children – returns child orgs (spaces) of the given parent. */
+  getChildOrganizations(parentOrgId: string): Observable<OrganizationResponseDto[]> {
+    return this.http
+      .get<OrganizationResponseDto[]>(
+        `${this.API_URL}/organizations/${parentOrgId}/children`
+      )
+      .pipe(catchError(this.handleError));
+  }
+
+  /** Get spaces (child orgs) for a parent org – uses GET /organizations/:orgId/children. */
+  getSpaces(parentOrgId: string): Observable<OrganizationResponseDto[]> {
+    return this.getChildOrganizations(parentOrgId);
+  }
+
+  createChildOrganization(
+    parentOrgId: string,
+    dto: CreateOrganizationDto
+  ): Observable<OrganizationResponseDto> {
+    return this.http
+      .post<OrganizationResponseDto>(
+        `${this.API_URL}/organizations/${parentOrgId}/children`,
+        dto
+      )
+      .pipe(catchError(this.handleError));
+  }
+
   private handleError = (error: HttpErrorResponse): Observable<never> => {
     const message =
       error.error?.message ||

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { OrganizationMember, User, RoleType, Organization } from '@data';
 
 export interface OrgMemberSummary {
@@ -125,13 +125,36 @@ export class OrganizationMembershipService {
     return m?.role ?? null;
   }
 
-  /** Get all org IDs and roles for a user (for enriching request.user.org_roles from DB). */
+  /** Get all org IDs and roles for a user (direct only). */
   async getOrgRolesForUser(userId: string): Promise<Record<string, RoleType>> {
     const list = await this.membershipRepo.find({
       where: { userId },
     });
     const out: Record<string, RoleType> = {};
     for (const m of list) out[m.organizationId] = m.role;
+    return out;
+  }
+
+  /**
+   * Effective org roles: direct memberships + inherited in child orgs (2-level only).
+   * Inheritance: owner/admin/viewer on parent → same role on all children; direct child role overrides.
+   * Used to enrich request.user.org_roles so OrgRoleGuard allows access to spaces when user has role on parent site.
+   */
+  async getEffectiveOrgRolesForUser(userId: string): Promise<Record<string, RoleType>> {
+    const direct = await this.getOrgRolesForUser(userId);
+    const out = { ...direct };
+    const parentIds = Object.keys(direct);
+    if (parentIds.length === 0) return out;
+
+    const children = await this.orgRepo.find({
+      where: { parentId: In(parentIds) },
+      select: ['id', 'parentId'],
+    });
+    for (const child of children) {
+      if (child.parentId && !(child.id in out)) {
+        out[child.id] = direct[child.parentId];
+      }
+    }
     return out;
   }
 }

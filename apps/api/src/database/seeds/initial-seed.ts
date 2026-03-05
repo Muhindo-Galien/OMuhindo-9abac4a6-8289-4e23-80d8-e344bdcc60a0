@@ -1,4 +1,4 @@
-import { DataSource } from 'typeorm';
+import { DataSource, IsNull } from 'typeorm';
 import {
   Organization,
   Role,
@@ -19,20 +19,39 @@ export class InitialSeedService {
 
   async run(): Promise<void> {
     console.log('🌱 Seeding...');
-    const org = await this.createOrg();
+    const parentOrg = await this.createParentOrg();
+    const space = await this.createSpace(parentOrg);
     const roles = await this.createRoles();
-    const users = await this.createUsers(org, roles);
-    await this.createTasks(users, org);
+    const users = await this.createUsers(parentOrg, roles);
+    await this.createTasks(users, space);
     console.log('✅ Seeding done!');
   }
 
-  private async createOrg() {
+  /** Parent org (site). No tasks here. */
+  private async createParentOrg(): Promise<Organization> {
     const repo = this.dataSource.getRepository(Organization);
-    const existing = await repo.findOne({ where: { name: 'TurboVets' } });
+    const existing = await repo.findOne({
+      where: { name: 'TurboVets', parentId: IsNull() },
+    });
     if (existing) return existing;
     return await repo.save({
       name: 'TurboVets',
       description: 'Main organization',
+      parentId: undefined,
+    });
+  }
+
+  /** Child org (space). Tasks are only allowed in spaces. */
+  private async createSpace(parent: Organization): Promise<Organization> {
+    const repo = this.dataSource.getRepository(Organization);
+    const existing = await repo.findOne({
+      where: { name: 'Default Space', parentId: parent.id },
+    });
+    if (existing) return existing;
+    return await repo.save({
+      name: 'Default Space',
+      description: 'Default space for tasks',
+      parentId: parent.id,
     });
   }
 
@@ -118,10 +137,15 @@ export class InitialSeedService {
     return users;
   }
 
-  private async createTasks(users: User[], org: Organization) {
+  /** Create tasks only in the given space (child org). Never in parent org. */
+  private async createTasks(users: User[], space: Organization) {
     const repo = this.dataSource.getRepository(Task);
     const existing = await repo.count();
     if (existing > 0) return;
+    if (space.parentId == null) {
+      console.warn('⚠️ Seed skipped task creation: org is a site (parent), not a space. Tasks only belong in spaces.');
+      return;
+    }
 
     const tasks = [
       {
@@ -131,7 +155,7 @@ export class InitialSeedService {
         priority: TaskPriority.HIGH,
         category: TaskCategory.WORK,
         ownerId: users[0].id,
-        organizationId: org.id,
+        organizationId: space.id,
       },
       {
         title: 'Task 2',
@@ -140,7 +164,7 @@ export class InitialSeedService {
         priority: TaskPriority.MEDIUM,
         category: TaskCategory.PROJECT,
         ownerId: users[1].id,
-        organizationId: org.id,
+        organizationId: space.id,
       },
       {
         title: 'Task 3',
@@ -149,7 +173,7 @@ export class InitialSeedService {
         priority: TaskPriority.LOW,
         category: TaskCategory.PERSONAL,
         ownerId: users[2].id,
-        organizationId: org.id,
+        organizationId: space.id,
         completedAt: new Date(),
       },
     ];

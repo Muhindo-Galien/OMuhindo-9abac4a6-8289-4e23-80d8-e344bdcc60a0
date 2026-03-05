@@ -35,18 +35,20 @@ import {
 
 // Local
 import { EnrichOrgRolesGuard } from '../organizations/enrich-org-roles.guard';
+import { RequireSpaceOrgGuard } from './require-space-org.guard';
 import { TasksService } from './tasks.service';
 
 @ApiTags('tasks')
 @Controller('tasks')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, EnrichOrgRolesGuard, RolesGuard)
 @UseInterceptors(ClassSerializerInterceptor)
 export class TasksController {
   constructor(private tasksService: TasksService) {}
 
+  /** Tasks only in spaces (child orgs). OrgRoleGuard = access; RequireSpaceOrgGuard = org must be a space. */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(EnrichOrgRolesGuard, OrgRoleGuard)
+  @UseGuards(OrgRoleGuard, RequireSpaceOrgGuard)
   @RequireOrgAdminOrOwner()
   @Roles(RoleType.VIEWER)
   async createTask(

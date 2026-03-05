@@ -5,7 +5,10 @@ import { AuthService } from '../services/auth.service';
 import { OrganizationService } from '../services/organization.service';
 import { OrgContextService } from '../services/org-context.service';
 import { OrganizationResponseDto } from '@data';
-import { getInitialsForUser, getInitialsFromWords } from '../shared/utils/string.utils';
+import {
+  getInitialsForUser,
+  getInitialsFromWords,
+} from '../shared/utils/string.utils';
 
 import { OrgsHeaderComponent } from './orgs-header.component';
 import { OrgsWelcomeComponent } from './orgs-welcome.component';
@@ -49,26 +52,26 @@ import {
         />
 
         @if (isLoading) {
-          <div class="flex justify-center py-12">
-            <div
-              class="animate-spin rounded-full h-10 w-10 border-2 border-turbovets-navy border-t-transparent"
-            ></div>
-          </div>
+        <div class="flex justify-center py-12">
+          <div
+            class="animate-spin rounded-full h-10 w-10 border-2 border-turbovets-navy border-t-transparent"
+          ></div>
+        </div>
         } @else if (organizations.length === 0) {
-          <app-org-list-empty (createClick)="openCreateModal()" />
+        <app-org-list-empty (createClick)="openCreateModal()" />
         } @else {
-          <ul class="space-y-4">
-            @for (org of organizations; track org.id) {
-              <li>
-                <app-org-card
-                  [org]="org"
-                  [initials]="getOrgInitials(org.name)"
-                  (goToDashboard)="goToDashboard($event)"
-                />
-              </li>
-            }
-          </ul>
-      
+        <ul class="space-y-4">
+          @for (org of organizations; track org.id) {
+          <li>
+            <app-org-card
+              [org]="org"
+              [initials]="getOrgInitials(org.name)"
+              (goToDashboard)="goToDashboard($event)"
+            />
+          </li>
+          }
+        </ul>
+
         }
       </main>
 
@@ -133,7 +136,7 @@ export class OrgListComponent implements OnInit {
   loadOrgs(): void {
     this.isLoading = true;
     this.orgService.getMyOrganizations().subscribe({
-      next: (list) => {
+      next: list => {
         this.organizations = list;
         this.isLoading = false;
       },
@@ -159,7 +162,7 @@ export class OrgListComponent implements OnInit {
     this.createLoading = true;
     this.createError = '';
     this.orgService.createOrganization(value).subscribe({
-      next: (res) => {
+      next: res => {
         this.authService.updateSessionWithToken(res.access_token);
         this.orgContext.setCurrentOrg({
           id: res.organization.id,
@@ -170,10 +173,11 @@ export class OrgListComponent implements OnInit {
         });
         this.closeCreateModal();
         const returnUrl =
-          this.route.snapshot.queryParamMap.get('returnUrl') || '/dashboard';
+          this.route.snapshot.queryParamMap.get('returnUrl') ||
+          '/app/dashboard';
         this.router.navigateByUrl(returnUrl);
       },
-      error: (err) => {
+      error: err => {
         this.createError =
           err?.error?.message ?? 'Failed to create organization.';
         this.createLoading = false;
@@ -193,7 +197,7 @@ export class OrgListComponent implements OnInit {
       owner: org.owner,
     });
     const returnUrl =
-      this.route.snapshot.queryParamMap.get('returnUrl') || '/dashboard';
+      this.route.snapshot.queryParamMap.get('returnUrl') || '/app/dashboard';
     this.router.navigateByUrl(returnUrl);
   }
 }

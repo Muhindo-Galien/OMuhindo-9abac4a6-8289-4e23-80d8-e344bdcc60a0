@@ -3,46 +3,47 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { TaskCardComponent } from './task-card.component';
 import { TaskFormComponent } from './task-form.component';
-import { TaskFiltersComponent } from './task-filters.component';
+import { TaskFilterModalComponent } from './task-filter-modal.component';
 import { TaskService } from '../services/task.service';
 import { OrgContextService } from '../services/org-context.service';
-import { CreateTaskDto, UpdateTaskDto } from '@data';
+import { CreateTaskDto, UpdateTaskDto, isChildOrg, TASKS_REQUIRE_SPACE_MESSAGE } from '@data';
 
 @Component({
   selector: 'app-task-list',
   standalone: true,
-  imports: [CommonModule, RouterModule, TaskCardComponent, TaskFormComponent, TaskFiltersComponent],
+  imports: [CommonModule, RouterModule, TaskCardComponent, TaskFormComponent, TaskFilterModalComponent],
   template: `
-    <div class="min-h-screen bg-gray-50">
-      <!-- Header -->
-      <header class="bg-white shadow-sm border-b border-gray-200">
-        <div class="container-padding py-6">
-          <div class="flex-between">
-            <div>
-              <h1 class="text-3xl font-bold text-gray-900">Task Dashboard</h1>
-              <p class="text-gray-600 mt-1">Manage your tasks efficiently</p>
-            </div>
-            <button
-              (click)="openCreateModal()"
-              class="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors duration-200"
-            >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-              </svg>
-              New Task
-            </button>
-          </div>
+    <div class="bg-gray-50 min-h-full">
+      <!-- List toolbar: Filter + Create task -->
+      <div class="container-padding py-4 flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-white">
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            (click)="openFilterModal()"
+            class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+          >
+            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            Filter
+          </button>
+          <button
+            type="button"
+            (click)="openCreateModal()"
+            [disabled]="!canCreateTasks()"
+            [title]="canCreateTasks() ? 'Create task' : TASKS_REQUIRE_SPACE_MESSAGE"
+            class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-turbovets-navy rounded-lg hover:bg-turbovets-navy/90 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+            </svg>
+            Create task
+          </button>
         </div>
-      </header>
+      </div>
 
       <!-- Main Content -->
       <main class="container-padding section-spacing">
-        <!-- Filters -->
-        <app-task-filters
-          (filterChange)="onFiltersChange($event)"
-          [isLoading]="isLoading"
-        ></app-task-filters>
-
         <!-- Loading State -->
         <div *ngIf="isLoading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
           <div *ngFor="let item of [1,2,3,4,5,6]" class="task-card animate-pulse">
@@ -111,6 +112,14 @@ import { CreateTaskDto, UpdateTaskDto } from '@data';
         </div>
       </main>
 
+      <!-- Filter Modal -->
+      <app-task-filter-modal
+        [isOpen]="filterModalOpen"
+        [isLoading]="isLoading"
+        (close)="closeFilterModal()"
+        (filterChange)="onFiltersChange($event)"
+      ></app-task-filter-modal>
+
       <!-- Task Form Modal -->
       <app-task-form
         *ngIf="showTaskModal"
@@ -156,7 +165,15 @@ export class TaskListComponent implements OnInit {
   filteredTasks: any[] = [];
   isLoading = false;
   showTaskModal = false;
+  filterModalOpen = false;
   selectedTask: any = null;
+
+  /** Shared with backend RequireSpaceOrgGuard: tasks only in spaces. */
+  readonly TASKS_REQUIRE_SPACE_MESSAGE = TASKS_REQUIRE_SPACE_MESSAGE;
+
+  canCreateTasks(): boolean {
+    return isChildOrg(this.orgContext.getCurrentOrg());
+  }
 
   ngOnInit(): void {
     this.loadTasks();
@@ -178,12 +195,21 @@ export class TaskListComponent implements OnInit {
     });
   }
 
+  openFilterModal(): void {
+    this.filterModalOpen = true;
+  }
+
+  closeFilterModal(): void {
+    this.filterModalOpen = false;
+  }
+
   onFiltersChange(filters: any): void {
     console.log('Filters changed:', filters);
     this.filteredTasks = this.taskService.filterTasks(this.tasks, filters);
   }
 
   openCreateModal(): void {
+    if (!this.canCreateTasks()) return;
     this.selectedTask = null;
     this.showTaskModal = true;
   }

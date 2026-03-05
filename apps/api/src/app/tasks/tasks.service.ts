@@ -19,6 +19,9 @@ import {
   AuditAction,
   AuditResource,
   getRoleLevel,
+  isChildOrg,
+  isParentOrg,
+  TASKS_REQUIRE_SPACE_MESSAGE,
 } from '@data';
 import { AuditService } from '../audit/audit.service';
 import { EffectiveRoleService } from '../organizations/organizations.service';
@@ -55,10 +58,8 @@ export class TasksService {
       where: { id: createTaskDto.organizationId },
     });
     if (!org) throw new NotFoundException('Organization not found');
-    if (org.parentId == null) {
-      throw new ForbiddenException(
-        'Tasks can only be created in project (child) organizations. Create a project under your workspace first, then create tasks there.'
-      );
+    if (!isChildOrg(org)) {
+      throw new ForbiddenException(TASKS_REQUIRE_SPACE_MESSAGE);
     }
 
     let taskOwnerId = currentUser.id;
@@ -160,6 +161,7 @@ export class TasksService {
       relations: ['owner', 'organization'],
     });
     if (!task) throw new NotFoundException('Task not found');
+    await this.assertOrgIsSpace(task.organizationId, task.organization);
 
     const effective = await this.effectiveRoleService.getEffectiveRole(
       currentUser.id,
@@ -180,6 +182,7 @@ export class TasksService {
       relations: ['owner', 'organization'],
     });
     if (!task) throw new NotFoundException('Task not found');
+    await this.assertOrgIsSpace(task.organizationId, task.organization);
 
     const effective = await this.effectiveRoleService.getEffectiveRole(
       currentUser.id,
@@ -242,6 +245,7 @@ export class TasksService {
       relations: ['owner', 'organization'],
     });
     if (!task) throw new NotFoundException('Task not found');
+    await this.assertOrgIsSpace(task.organizationId, task.organization);
 
     const effective = await this.effectiveRoleService.getEffectiveRole(
       currentUser.id,
@@ -282,6 +286,7 @@ export class TasksService {
         relations: ['owner', 'organization'],
       });
       if (!task) continue;
+      if (!isChildOrg(task.organization)) continue; // only spaces
 
       const effective = await this.effectiveRoleService.getEffectiveRole(
         currentUser.id,
@@ -302,10 +307,15 @@ export class TasksService {
     return result;
   }
 
+  /** Org ids where user has access and which are spaces (child orgs). Tasks are only in spaces. */
   private async getAccessibleOrgIds(userId: string): Promise<string[]> {
-    const orgs = await this.organizationRepository.find();
+    const orgs = await this.organizationRepository.find({
+      where: {},
+      select: ['id', 'parentId'],
+    });
     const ids: string[] = [];
     for (const org of orgs) {
+      if (!isChildOrg(org)) continue; // only spaces (child orgs), not sites (parents)
       const role = await this.effectiveRoleService.getEffectiveRole(
         userId,
         org.id
@@ -313,6 +323,28 @@ export class TasksService {
       if (role) ids.push(org.id);
     }
     return ids;
+  }
+
+  /**
+   * Enforces 2-level hierarchy: tasks only in spaces (child orgs). Rejects parent orgs (sites).
+   */
+  private async assertOrgIsSpace(
+    organizationId: string,
+    org?: Organization | null
+  ): Promise<void> {
+    if (org != null) {
+      if (isParentOrg(org))
+        throw new ForbiddenException(TASKS_REQUIRE_SPACE_MESSAGE);
+      return;
+    }
+    const loaded = await this.organizationRepository.findOne({
+      where: { id: organizationId },
+      select: ['id', 'parentId'],
+    });
+    if (!loaded)
+      throw new NotFoundException('Organization not found');
+    if (isParentOrg(loaded))
+      throw new ForbiddenException(TASKS_REQUIRE_SPACE_MESSAGE);
   }
 
   private async validateOwnerInOrganization(

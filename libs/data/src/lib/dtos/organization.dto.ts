@@ -17,7 +17,7 @@ export class CreateOrganizationDto {
   @MaxLength(2000)
   description?: string;
 
-  /** Omit for workspace (root). Set for project (child). */
+  /** Omit for workspace/parent org (root). Set for space/child org. */
   @IsOptional()
   @IsUUID()
   parentId?: string;

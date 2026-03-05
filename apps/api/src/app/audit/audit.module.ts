@@ -17,7 +17,7 @@ import { AuthModule } from '../auth/auth.module';
   imports: [
     TypeOrmModule.forFeature([AuditLog, User, Organization]),
     forwardRef(() => OrganizationsModule),
-    AuthModule,
+    forwardRef(() => AuthModule),
     PassportModule,
 
     // JWT module configuration (same as other modules)

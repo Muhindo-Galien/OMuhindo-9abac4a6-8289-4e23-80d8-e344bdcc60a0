@@ -200,6 +200,30 @@ export class OrganizationsService {
     );
   }
 
+  async findChildren(
+    parentId: string,
+    userId: string
+  ): Promise<OrganizationResponseDto[]> {
+    const hasAccess = await this.effectiveRoleService.hasMinimumRole(
+      userId,
+      parentId,
+      RoleType.VIEWER
+    );
+    if (!hasAccess)
+      throw new ForbiddenException('No access to this organization');
+
+    const children = await this.orgRepository.find({
+      where: { parentId },
+      order: { name: 'ASC' },
+    });
+    const result: OrganizationResponseDto[] = [];
+    for (const org of children) {
+      const owner = await this.membershipService.getOwnerForOrg(org.id);
+      result.push(this.toDto(org, owner));
+    }
+    return result;
+  }
+
   async createChild(
     parentId: string,
     dto: CreateOrganizationDto,

@@ -29,7 +29,7 @@ export class GuestGuard implements CanActivate {
       map((authenticated) => {
         if (authenticated) {
           const returnUrl =
-            route.queryParamMap.get('returnUrl') || '/dashboard';
+            route.queryParamMap.get('returnUrl') || '/app/dashboard';
           this.router.navigateByUrl(returnUrl);
           return false;
         }

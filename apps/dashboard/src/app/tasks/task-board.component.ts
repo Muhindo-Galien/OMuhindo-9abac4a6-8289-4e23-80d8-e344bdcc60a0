@@ -5,10 +5,10 @@ import { CdkDragDrop, DragDropModule, moveItemInArray, transferArrayItem } from 
 
 import { TaskCardComponent } from './task-card.component';
 import { TaskFormComponent } from './task-form.component';
-import { TaskFiltersComponent } from './task-filters.component';
+import { TaskFilterModalComponent } from './task-filter-modal.component';
 import { TaskService, BulkUpdateTask } from '../services/task.service';
 import { OrgContextService } from '../services/org-context.service';
-import { CreateTaskDto, UpdateTaskDto, TaskResponseDto, TaskStatus } from '@data';
+import { CreateTaskDto, UpdateTaskDto, TaskResponseDto, TaskStatus, isChildOrg, TASKS_REQUIRE_SPACE_MESSAGE } from '@data';
 
 interface TaskColumn {
   id: TaskStatus;
@@ -20,50 +20,39 @@ interface TaskColumn {
 @Component({
   selector: 'app-task-board',
   standalone: true,
-  imports: [CommonModule, RouterModule, DragDropModule, TaskCardComponent, TaskFormComponent, TaskFiltersComponent],
+  imports: [CommonModule, RouterModule, DragDropModule, TaskCardComponent, TaskFormComponent, TaskFilterModalComponent],
   template: `
-    <div class="min-h-screen bg-gray-50">
-      <!-- Header -->
-      <header class="bg-white shadow-sm border-b border-gray-200">
-        <div class="container-padding py-6">
-          <div class="flex-between">
-            <div>
-              <h1 class="text-3xl font-bold text-gray-900">Task Board</h1>
-              <p class="text-gray-600 mt-1">Drag and drop to organize your tasks</p>
-            </div>
-            <div class="flex items-center gap-4">
-              <button
-                (click)="toggleView()"
-                class="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200"
-              >
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                        [attr.d]="isListView ? 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z' : 'M4 6h16M4 10h16M4 14h16M4 18h16'"></path>
-                </svg>
-                {{ isListView ? 'Board View' : 'List View' }}
-              </button>
-              <button
-                (click)="openCreateModal()"
-                class="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors duration-200"
-              >
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                </svg>
-                New Task
-              </button>
-            </div>
-          </div>
+    <div class="bg-gray-50 min-h-full">
+      <!-- Board toolbar: Filter + Create task -->
+      <div class="container-padding py-4 flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-white">
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            (click)="openFilterModal()"
+            class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+          >
+            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            Filter
+          </button>
+          <button
+            type="button"
+            (click)="openCreateModal()"
+            [disabled]="!canCreateTasks()"
+            [title]="canCreateTasks() ? 'Create task' : TASKS_REQUIRE_SPACE_MESSAGE"
+            class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-turbovets-navy rounded-lg hover:bg-turbovets-navy/90 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+            </svg>
+            Create task
+          </button>
         </div>
-      </header>
+      </div>
 
       <!-- Main Content -->
       <main class="container-padding section-spacing">
-        <!-- Filters -->
-        <app-task-filters
-          (filterChange)="onFiltersChange($event)"
-          [isLoading]="isLoading"
-        ></app-task-filters>
-
         <!-- Loading State -->
         <div *ngIf="isLoading" class="text-center py-12">
           <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
@@ -150,6 +139,14 @@ interface TaskColumn {
         </div>
       </main>
 
+      <!-- Filter Modal (all filters: basic + advanced) -->
+      <app-task-filter-modal
+        [isOpen]="filterModalOpen"
+        [isLoading]="isLoading"
+        (close)="closeFilterModal()"
+        (filterChange)="onFiltersChange($event)"
+      ></app-task-filter-modal>
+
       <!-- Task Form Modal -->
       <app-task-form
         *ngIf="showTaskModal"
@@ -210,8 +207,8 @@ export class TaskBoardComponent implements OnInit {
   // Component state
   isLoading = false;
   showTaskModal = false;
+  filterModalOpen = false;
   selectedTask: TaskResponseDto | null = null;
-  isListView = false;
 
   // Task data
   allTasks: TaskResponseDto[] = [];
@@ -238,6 +235,13 @@ export class TaskBoardComponent implements OnInit {
       color: 'bg-green-500'
     }
   ];
+
+  /** Shared with backend RequireSpaceOrgGuard: tasks only in spaces. */
+  readonly TASKS_REQUIRE_SPACE_MESSAGE = TASKS_REQUIRE_SPACE_MESSAGE;
+
+  canCreateTasks(): boolean {
+    return isChildOrg(this.orgContext.getCurrentOrg());
+  }
 
   // Enum access for template
   TaskStatus = TaskStatus;
@@ -285,8 +289,15 @@ export class TaskBoardComponent implements OnInit {
     });
   }
 
+  openFilterModal(): void {
+    this.filterModalOpen = true;
+  }
+
+  closeFilterModal(): void {
+    this.filterModalOpen = false;
+  }
+
   onFiltersChange(filters: any): void {
-    console.log('Filters changed:', filters);
     this.currentFilters = filters;
     this.applyFiltersAndOrganize();
   }
@@ -502,6 +513,7 @@ export class TaskBoardComponent implements OnInit {
   }
 
   openCreateModal(): void {
+    if (!this.canCreateTasks()) return;
     this.selectedTask = null;
     this.showTaskModal = true;
   }
@@ -543,15 +555,6 @@ export class TaskBoardComponent implements OnInit {
           console.error('Error creating task:', error);
         }
       });
-    }
-  }
-
-  toggleView(): void {
-    this.isListView = !this.isListView;
-    if (this.isListView) {
-      this.router.navigate(['/tasks/list']);
-    } else {
-      this.router.navigate(['/tasks/board']);
     }
   }
 

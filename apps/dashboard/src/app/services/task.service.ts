@@ -2,7 +2,15 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
-import { CreateTaskDto, UpdateTaskDto, TaskResponseDto, TaskStatus, TaskPriority } from '@data';
+import {
+  CreateTaskDto,
+  UpdateTaskDto,
+  TaskResponseDto,
+  TaskStatus,
+  TaskPriority,
+  isChildOrg,
+  TASKS_REQUIRE_SPACE_MESSAGE,
+} from '@data';
 import { environment } from '../../environments/environment';
 import { OrgContextService } from './org-context.service';
 
@@ -31,6 +39,10 @@ export class TaskService {
   private readonly API_URL = environment.apiUrl;
 
   getTasks(): Observable<TaskResponseDto[]> {
+    const org = this.orgContext.getCurrentOrg();
+    if (!isChildOrg(org)) {
+      return of([]);
+    }
     const orgId = this.orgContext.getCurrentOrgId();
     const params = new URLSearchParams({ sortBy: 'sortOrder', sortOrder: 'ASC' });
     if (orgId) params.set('organizationId', orgId);
@@ -45,26 +57,40 @@ export class TaskService {
     );
   }
 
+  /** Tasks only in spaces (child orgs). Shared rule with backend RequireSpaceOrgGuard. */
   createTask(task: CreateTaskDto): Observable<TaskResponseDto> {
+    const org = this.orgContext.getCurrentOrg();
+    if (!isChildOrg(org)) {
+      return throwError(() => ({ error: { message: TASKS_REQUIRE_SPACE_MESSAGE } }));
+    }
     return this.http.post<TaskResponseDto>(`${this.API_URL}/tasks`, task).pipe(
       catchError(this.handleError)
     );
   }
 
   updateTask(id: string, task: UpdateTaskDto): Observable<TaskResponseDto> {
+    if (!isChildOrg(this.orgContext.getCurrentOrg())) {
+      return throwError(() => ({ error: { message: TASKS_REQUIRE_SPACE_MESSAGE } }));
+    }
     return this.http.put<TaskResponseDto>(`${this.API_URL}/tasks/${id}`, task).pipe(
       catchError(this.handleError)
     );
   }
 
   deleteTask(id: string): Observable<void> {
+    if (!isChildOrg(this.orgContext.getCurrentOrg())) {
+      return throwError(() => ({ error: { message: TASKS_REQUIRE_SPACE_MESSAGE } }));
+    }
     return this.http.delete<void>(`${this.API_URL}/tasks/${id}`).pipe(
       catchError(this.handleError)
     );
   }
 
-  // Bulk update for drag-and-drop operations
+  /** Bulk update for drag-and-drop. Tasks only in spaces (shared rule with backend). */
   bulkUpdateTasks(updates: BulkUpdateTask[]): Observable<TaskResponseDto[]> {
+    if (!isChildOrg(this.orgContext.getCurrentOrg())) {
+      return throwError(() => ({ error: { message: TASKS_REQUIRE_SPACE_MESSAGE } }));
+    }
     return this.http.put<TaskResponseDto[]>(`${this.API_URL}/tasks/bulk-update`, { tasks: updates }).pipe(
       catchError(this.handleError)
     );

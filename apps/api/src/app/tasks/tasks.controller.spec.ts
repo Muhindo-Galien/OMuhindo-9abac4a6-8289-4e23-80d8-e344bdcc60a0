@@ -6,6 +6,7 @@ import { Repository } from 'typeorm';
 // Import controller and service
 import { TasksController } from './tasks.controller';
 import { TasksService } from './tasks.service';
+import { RequireSpaceOrgGuard } from './require-space-org.guard';
 import { EffectiveRoleService } from '../organizations/organizations.service';
 import { EnrichOrgRolesGuard } from '../organizations/enrich-org-roles.guard';
 
@@ -82,6 +83,7 @@ describe('TasksController - POST /tasks', () => {
       controllers: [TasksController],
       providers: [
         TasksService,
+        RequireSpaceOrgGuard,
         { provide: getRepositoryToken(Task), useValue: mockTaskRepository },
         { provide: getRepositoryToken(Organization), useValue: mockOrganizationRepository },
         { provide: getRepositoryToken(User), useValue: mockUserRepository },
