@@ -15,6 +15,7 @@ import {
   CreateOrganizationDto,
   UpdateOrganizationDto,
   OrganizationResponseDto,
+  UserProfile,
   RoleType,
 } from '@data';
 import { JwtAuthGuard, CurrentUser, OrgRoles, OrgRoleGuard } from '@auth';
@@ -22,9 +23,11 @@ import { OrganizationsService } from './organizations.service';
 import { AuthApplicationService } from '../auth/auth.service';
 import { EnrichOrgRolesGuard } from './enrich-org-roles.guard';
 
+
 export interface CreateOrganizationResponse {
   organization: OrganizationResponseDto;
   access_token: string;
+  user: UserProfile;
 }
 
 @ApiTags('organizations')
@@ -43,8 +46,9 @@ export class OrganizationsController {
     @CurrentUser() user: { id: string }
   ): Promise<CreateOrganizationResponse> {
     const organization = await this.organizationsService.create(dto, user.id);
-    const { access_token } = await this.authApplicationService.refresh(user.id);
-    return { organization, access_token };
+    const { access_token, user: updatedUser } =
+      await this.authApplicationService.refresh(user.id);
+    return { organization, access_token, user: updatedUser };
   }
 
   @Get()
@@ -115,7 +119,7 @@ export class OrganizationsController {
 
   @Put(':orgId')
   @UseGuards(OrgRoleGuard)
-  @OrgRoles(RoleType.ADMIN, RoleType.OWNER)
+  @OrgRoles(RoleType.OWNER)
   async update(
     @Param('orgId') orgId: string,
     @Body() dto: UpdateOrganizationDto,

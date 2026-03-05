@@ -6,11 +6,13 @@ import { environment } from '../../environments/environment';
 import {
   CreateOrganizationDto,
   OrganizationResponseDto,
+  UserProfile,
 } from '@data';
 
 export interface CreateOrganizationResponse {
   organization: OrganizationResponseDto;
   access_token: string;
+  user: UserProfile;
 }
 
 @Injectable({

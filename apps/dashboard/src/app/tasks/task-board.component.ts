@@ -1,7 +1,9 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { CdkDragDrop, DragDropModule, moveItemInArray, transferArrayItem } from '@angular/cdk/drag-drop';
+import { skip, distinctUntilChanged } from 'rxjs/operators';
 
 import { TaskCardComponent } from './task-card.component';
 import { TaskFormComponent } from './task-form.component';
@@ -203,6 +205,7 @@ export class TaskBoardComponent implements OnInit {
   private taskService = inject(TaskService);
   private orgContext = inject(OrgContextService);
   private router = inject(Router);
+  private destroyRef = inject(DestroyRef);
 
   // Component state
   isLoading = false;
@@ -248,6 +251,13 @@ export class TaskBoardComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadTasks();
+    this.orgContext.currentOrg$
+      .pipe(
+        skip(1),
+        distinctUntilChanged((a, b) => a?.id === b?.id),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(() => this.loadTasks());
   }
 
   loadTasks(): void {

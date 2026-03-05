@@ -4,7 +4,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import {
   User,
@@ -16,6 +16,7 @@ import {
   LoginDto,
   AuthResponseDto,
   UserProfile,
+  MembershipSummary,
   RoleType,
   AuditAction,
   AuditResource,
@@ -96,8 +97,10 @@ export class AuthApplicationService {
       }
     }
 
-    const tokenResult = await this.authService.login(savedUser, orgRoles);
-    const profile = this.toProfile(savedUser, orgRoles);
+    const effectiveOrgRoles = await this.getEffectiveOrgRolesForUser(savedUser.id);
+    const memberships = await this.getMembershipsForUser(savedUser.id);
+    const tokenResult = await this.authService.login(savedUser);
+    const profile = this.toProfile(savedUser, effectiveOrgRoles, memberships);
 
     await this.auditService.logAction(
       savedUser.id,
@@ -117,9 +120,10 @@ export class AuthApplicationService {
     );
     if (!user) throw new UnauthorizedException('Invalid credentials');
 
-    // Login: return JWT without org_roles (no access until membership exists)
+    const effectiveOrgRoles = await this.getEffectiveOrgRolesForUser(user.id);
+    const memberships = await this.getMembershipsForUser(user.id);
     const tokenResult = await this.authService.login(user);
-    const profile = this.toProfile(user);
+    const profile = this.toProfile(user, effectiveOrgRoles, memberships);
 
     await this.auditService.logAction(
       user.id,
@@ -131,30 +135,63 @@ export class AuthApplicationService {
     return { access_token: tokenResult.access_token, user: profile };
   }
 
-  /** Refresh JWT to include current org_roles from memberships. */
+  /** Refresh: new JWT (minimal, no org_roles); response user has org_roles + memberships from DB. */
   async refresh(userId: string): Promise<AuthResponseDto> {
     const user = await this.userRepository.findOne({
       where: { id: userId },
     });
     if (!user) throw new UnauthorizedException('User not found');
 
-    const memberships = await this.membershipRepository.find({
+    const effectiveOrgRoles = await this.getEffectiveOrgRolesForUser(userId);
+    const memberships = await this.getMembershipsForUser(userId);
+    const tokenResult = await this.authService.login(user);
+    const profile = this.toProfile(user, effectiveOrgRoles, memberships);
+    return { access_token: tokenResult.access_token, user: profile };
+  }
+
+  private async getEffectiveOrgRolesForUser(
+    userId: string
+  ): Promise<Record<string, RoleType>> {
+    const list = await this.membershipRepository.find({
+      where: { userId },
+      select: ['organizationId', 'role'],
+    });
+    const direct: Record<string, RoleType> = {};
+    for (const m of list) direct[m.organizationId] = m.role as RoleType;
+    const parentIds = Object.keys(direct);
+    if (parentIds.length === 0) return direct;
+
+    const children = await this.organizationRepository.find({
+      where: { parentId: In(parentIds) },
+      select: ['id', 'parentId'],
+    });
+    const out = { ...direct };
+    for (const child of children) {
+      if (child.parentId && !(child.id in out)) {
+        out[child.id] = direct[child.parentId];
+      }
+    }
+    return out;
+  }
+
+  private async getMembershipsForUser(
+    userId: string
+  ): Promise<MembershipSummary[]> {
+    const list = await this.membershipRepository.find({
       where: { userId },
       relations: ['organization'],
     });
-    const orgRoles: Record<string, RoleType> = {};
-    for (const m of memberships) {
-      orgRoles[m.organizationId] = m.role;
-    }
-
-    const tokenResult = await this.authService.login(user, orgRoles);
-    const profile = this.toProfile(user, orgRoles);
-    return { access_token: tokenResult.access_token, user: profile };
+    return list.map((m) => ({
+      organizationId: m.organizationId,
+      organizationName: m.organization?.name,
+      role: m.role as RoleType,
+    }));
   }
 
   private toProfile(
     user: User,
-    orgRoles?: Record<string, RoleType>
+    orgRoles?: Record<string, RoleType>,
+    memberships?: MembershipSummary[]
   ): UserProfile {
     const profile: UserProfile = {
       id: user.id,
@@ -167,6 +204,7 @@ export class AuthApplicationService {
       updatedAt: user.updatedAt,
     };
     profile.org_roles = orgRoles ?? {};
+    profile.memberships = memberships ?? [];
     return profile;
   }
 }

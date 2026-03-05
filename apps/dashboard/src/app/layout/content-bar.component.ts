@@ -18,18 +18,18 @@ import { RoleType, isChildOrg as isChildOrgUtil } from '@data';
       <div class="max-w-full">
         <!-- Space title + description (child org only; parent not displayed) -->
         @if (isChildOrg()) {
-          <div class="pt-3 pb-1">
-            <h1 class="text-lg font-semibold text-gray-900 truncate">
-              {{ spaceName() }}
-            </h1>
-            @if (spaceDescription(); as desc) {
-              <p class="text-sm text-gray-500 mt-0.5 line-clamp-2">{{ desc }}</p>
-            }
-          </div>
+        <div class="pt-3 pb-1">
+          <h1 class="text-lg font-semibold text-gray-900 truncate">
+            {{ spaceName() }}
+          </h1>
+          @if (spaceDescription(); as desc) {
+          <p class="text-sm text-gray-500 mt-0.5 line-clamp-2">{{ desc }}</p>
+          }
+        </div>
         } @else {
-          <div class="pt-3 pb-1">
-            <h1 class="text-lg font-semibold text-gray-500">Select a space</h1>
-          </div>
+        <div class="pt-3 pb-1">
+          <h1 class="text-lg font-semibold text-gray-500">Select a space</h1>
+        </div>
         }
         <!-- Tabs: Board, List, Audit Logs -->
         <nav class="flex gap-1 -mb-px">
@@ -87,7 +87,10 @@ export class ContentBarComponent {
   canViewAuditLogs(): boolean {
     const orgId = this.orgContext.getCurrentOrgId();
     if (!orgId) return false;
-    const role = this.authService.getCurrentUser()?.org_roles?.[orgId];
+    const user = this.authService.getCurrentUser();
+    const role =
+      user?.org_roles?.[orgId] ??
+      user?.memberships?.find((m) => m.organizationId === orgId)?.role;
     return role === RoleType.ADMIN || role === RoleType.OWNER;
   }
 }

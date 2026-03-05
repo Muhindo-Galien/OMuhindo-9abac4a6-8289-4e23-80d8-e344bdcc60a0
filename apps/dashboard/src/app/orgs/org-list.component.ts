@@ -163,19 +163,9 @@ export class OrgListComponent implements OnInit {
     this.createError = '';
     this.orgService.createOrganization(value).subscribe({
       next: res => {
-        this.authService.updateSessionWithToken(res.access_token);
-        this.orgContext.setCurrentOrg({
-          id: res.organization.id,
-          name: res.organization.name,
-          description: res.organization.description,
-          parentId: res.organization.parentId,
-          owner: res.organization.owner,
-        });
+        this.authService.updateSessionWithToken(res.access_token, res.user);
         this.closeCreateModal();
-        const returnUrl =
-          this.route.snapshot.queryParamMap.get('returnUrl') ||
-          '/app/dashboard';
-        this.router.navigateByUrl(returnUrl);
+        this.loadOrgs();
       },
       error: err => {
         this.createError =

@@ -36,8 +36,8 @@ describe('AuthApplicationService', () => {
 
   beforeEach(async () => {
     userRepo = { findOne: jest.fn(), create: jest.fn(), save: jest.fn() };
-    orgRepo = { create: jest.fn(), save: jest.fn() };
-    memberRepo = { create: jest.fn(), save: jest.fn() };
+    orgRepo = { create: jest.fn(), save: jest.fn(), find: jest.fn().mockResolvedValue([]) };
+    memberRepo = { create: jest.fn(), save: jest.fn(), find: jest.fn().mockResolvedValue([]) };
     invitationRepo = { findOne: jest.fn(), save: jest.fn() };
     authService = {
       hashPassword: jest.fn().mockResolvedValue(hashedPassword),
@@ -88,12 +88,10 @@ describe('AuthApplicationService', () => {
           lastName: 'L',
         })
       );
-      expect(authService.login).toHaveBeenCalledWith(
-        mockUser,
-        expect.any(Object)
-      );
+      expect(authService.login).toHaveBeenCalledWith(mockUser);
       expect(result.user.role).toBe('user');
-      expect(result.user).not.toHaveProperty('organizationId');
+      expect(result.user.org_roles).toEqual({});
+      expect(result.user.memberships).toEqual([]);
     });
 
     it('should not create org on register when createOrgName provided (ignored for security)', async () => {
@@ -112,7 +110,7 @@ describe('AuthApplicationService', () => {
       expect(orgRepo.create).not.toHaveBeenCalled();
       expect(orgRepo.save).not.toHaveBeenCalled();
       expect(memberRepo.save).not.toHaveBeenCalled();
-      expect(authService.login).toHaveBeenCalledWith(mockUser, {});
+      expect(authService.login).toHaveBeenCalledWith(mockUser);
       expect(result.user.role).toBe('user');
     });
 
@@ -151,6 +149,7 @@ describe('AuthApplicationService', () => {
       invitationRepo.save.mockResolvedValue(inv);
       memberRepo.create.mockReturnValue(membershipEntity);
       memberRepo.save.mockResolvedValue(membershipEntity);
+      memberRepo.find.mockResolvedValue([{ organizationId: 'org-1', role: RoleType.VIEWER }]);
 
       const result = await service.register({
         email: 'u@test.com',
@@ -167,19 +166,24 @@ describe('AuthApplicationService', () => {
           role: RoleType.VIEWER,
         })
       );
+      expect(authService.login).toHaveBeenCalledWith(mockUser);
       expect(result.user.org_roles).toEqual({ 'org-1': RoleType.VIEWER });
+      expect(result.user.memberships).toEqual([{ organizationId: 'org-1', role: RoleType.VIEWER }]);
     });
   });
 
   describe('login', () => {
-    it('should return JWT without org_roles', async () => {
+    it('should return user with org_roles and memberships from DB; JWT minimal', async () => {
       authService.validateUser = jest.fn().mockResolvedValue(mockUser);
+      memberRepo.find.mockResolvedValue([]);
       const result = await service.login({
         email: 'u@test.com',
         password: 'pass',
       });
       expect(authService.login).toHaveBeenCalledWith(mockUser);
       expect(result.user.role).toBe('user');
+      expect(result.user.org_roles).toEqual({});
+      expect(result.user.memberships).toEqual([]);
     });
 
     it('should throw UnauthorizedException on invalid credentials', async () => {
@@ -191,34 +195,36 @@ describe('AuthApplicationService', () => {
   });
 
   describe('refresh', () => {
-    it('should return JWT with org_roles from memberships', async () => {
+    it('should return user with org_roles and memberships; JWT minimal (no org_roles in token)', async () => {
       userRepo.findOne.mockResolvedValue(mockUser);
-      memberRepo.find = jest.fn().mockResolvedValue([
-        { organizationId: 'org-1', role: 'owner' as const },
-        { organizationId: 'org-2', role: 'viewer' as const },
+      memberRepo.find.mockResolvedValue([
+        { organizationId: 'org-1', role: 'owner' },
+        { organizationId: 'org-2', role: 'viewer' },
       ]);
       const result = await service.refresh('user-1');
-      expect(authService.login).toHaveBeenCalledWith(
-        mockUser,
-        expect.objectContaining({ 'org-1': 'owner', 'org-2': 'viewer' })
-      );
+      expect(authService.login).toHaveBeenCalledWith(mockUser);
       expect(result.user.org_roles).toEqual({
         'org-1': 'owner',
         'org-2': 'viewer',
       });
+      expect(result.user.memberships).toEqual([
+        { organizationId: 'org-1', role: 'owner' },
+        { organizationId: 'org-2', role: 'viewer' },
+      ]);
     });
 
-    it('should return JWT with empty org_roles when user has no memberships', async () => {
+    it('should return empty org_roles and memberships when user has none', async () => {
       userRepo.findOne.mockResolvedValue(mockUser);
-      memberRepo.find = jest.fn().mockResolvedValue([]);
+      memberRepo.find.mockResolvedValue([]);
       const result = await service.refresh('user-1');
-      expect(authService.login).toHaveBeenCalledWith(mockUser, {});
+      expect(authService.login).toHaveBeenCalledWith(mockUser);
       expect(result.user.org_roles).toEqual({});
+      expect(result.user.memberships).toEqual([]);
     });
 
     it('should return org_roles for both parent and child when user has direct memberships in both', async () => {
       userRepo.findOne.mockResolvedValue(mockUser);
-      memberRepo.find = jest.fn().mockResolvedValue([
+      memberRepo.find.mockResolvedValue([
         { organizationId: 'parent-org', role: RoleType.OWNER },
         { organizationId: 'child-org', role: RoleType.ADMIN },
       ]);
@@ -229,16 +235,20 @@ describe('AuthApplicationService', () => {
       });
     });
 
-    it('should return only direct memberships (inheritance resolved at access-check time)', async () => {
+    it('should return effective org_roles (with inherited) and direct memberships', async () => {
       userRepo.findOne.mockResolvedValue(mockUser);
-      memberRepo.find = jest
-        .fn()
-        .mockResolvedValue([
-          { organizationId: 'parent-org', role: RoleType.OWNER },
-        ]);
+      memberRepo.find.mockResolvedValue([
+        { organizationId: 'parent-org', role: RoleType.OWNER },
+      ]);
+      orgRepo.find.mockResolvedValue([
+        { id: 'child-org', parentId: 'parent-org' },
+      ]);
       const result = await service.refresh('user-1');
-      expect(result.user.org_roles).toEqual({ 'parent-org': RoleType.OWNER });
-      expect(Object.keys(result.user.org_roles ?? {})).toHaveLength(1);
+      expect(result.user.org_roles).toHaveProperty('parent-org', RoleType.OWNER);
+      expect(result.user.org_roles).toHaveProperty('child-org', RoleType.OWNER);
+      expect(result.user.memberships).toEqual([
+        { organizationId: 'parent-org', role: RoleType.OWNER },
+      ]);
     });
   });
 });

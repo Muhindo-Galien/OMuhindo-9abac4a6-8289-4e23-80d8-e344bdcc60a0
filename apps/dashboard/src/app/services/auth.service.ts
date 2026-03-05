@@ -68,24 +68,17 @@ export class AuthService {
     this.clearSession();
   }
 
-  /** Update token after e.g. creating an org; merges org_roles from new JWT into stored user. */
-  updateSessionWithToken(access_token: string): void {
-    const token = this.getToken();
+  /** Update session after creating org / refresh: set new token and user (org_roles + memberships from response, not JWT). */
+  updateSessionWithToken(access_token: string, user?: UserProfile | null): void {
     if (!access_token) return;
     try {
       localStorage.setItem(this.TOKEN_KEY, access_token);
-      const payload = this.parseJwt(access_token);
-      const existing = this.getUserFromStorage();
-      if (existing && payload) {
-        const updated: User = {
-          ...existing,
-          org_roles: payload.org_roles ?? existing.org_roles,
-        };
-        localStorage.setItem(this.USER_KEY, JSON.stringify(updated));
-        this.currentUserSubject.next(updated);
+      if (user) {
+        localStorage.setItem(this.USER_KEY, JSON.stringify(user));
+        this.currentUserSubject.next(user as User);
       }
     } catch (error) {
-      console.error('Error updating session with token:', error);
+      console.error('Error updating session:', error);
     }
   }
 

@@ -65,6 +65,13 @@ export class AuthResponseDto {
   user: UserProfile;
 }
 
+/** Summary of a user's membership in an org (returned at login/register). */
+export interface MembershipSummary {
+  organizationId: string;
+  organizationName?: string;
+  role: RoleType;
+}
+
 export class UserProfile {
   id: string;
   email: string;
@@ -74,8 +81,10 @@ export class UserProfile {
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
-  /** Org-scoped roles when available (e.g. after refresh or register with org creation). */
+  /** Effective org-scoped roles (direct + inherited). Filled from memberships at login/register; not in JWT. */
   org_roles?: Record<string, RoleType>;
+  /** Direct memberships (orgId + role). Returned at login and register for UI/permission checks. */
+  memberships?: MembershipSummary[];
 }
 
 // Password change DTO
