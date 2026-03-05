@@ -9,10 +9,12 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard, CurrentUser, Public } from '@auth';
 import { InvitationsService } from './invitations.service';
 import { SendInvitationDto } from '@data';
 
+@ApiTags('invitations')
 @Controller('invitations')
 @UseGuards(JwtAuthGuard)
 export class InvitationsController {

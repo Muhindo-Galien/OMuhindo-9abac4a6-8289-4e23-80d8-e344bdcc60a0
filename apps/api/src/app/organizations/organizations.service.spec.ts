@@ -9,6 +9,17 @@ import {
   OrganizationsService,
 } from './organizations.service';
 
+/**
+ * OrganizationsService tests only. EffectiveRoleService is in effective-role.service.spec.ts.
+ *
+ * OOM note: The tests here are normal unit tests (create/findOne/update/delete/createChild/
+ * getMembers/revokeMembership plus hierarchy, revocation, parent-deletion). The failure is
+ * not the test logic but (1) Nest TestingModule compiling OrganizationsService and its deps
+ * (TypeORM + @data entities + AuditService, EffectiveRoleService, OrganizationMembershipService),
+ * and (2) Jest loading the whole api project when running api:test. Module is compiled once
+ * in beforeAll to reduce repeated work. If you still hit OOM, run this file alone with a
+ * larger heap: NODE_OPTIONS=--max-old-space-size=16384 nx run api:test --testPathPattern=organizations.service.spec
+ */
 describe('OrganizationsService', () => {
   let service: OrganizationsService;
   let orgRepo: any;
@@ -17,6 +28,7 @@ describe('OrganizationsService', () => {
   let auditService: any;
   let effectiveRoleService: any;
   let membershipService: any;
+  let moduleRef: TestingModule;
 
   const mockOwner = {
     id: 'owner-1',
@@ -25,7 +37,7 @@ describe('OrganizationsService', () => {
     lastName: 'Owner',
   };
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     orgRepo = {
       create: jest.fn(),
       save: jest.fn(),
@@ -52,7 +64,7 @@ describe('OrganizationsService', () => {
       getEffectiveMembersForOrg: jest.fn().mockResolvedValue([]),
     };
 
-    const module: TestingModule = await Test.createTestingModule({
+    moduleRef = await Test.createTestingModule({
       providers: [
         OrganizationsService,
         { provide: getRepositoryToken(Organization), useValue: orgRepo },
@@ -66,13 +78,12 @@ describe('OrganizationsService', () => {
         { provide: OrganizationMembershipService, useValue: membershipService },
       ],
     }).compile();
-    service = module.get<OrganizationsService>(OrganizationsService);
-    jest.clearAllMocks();
-    membershipService.getOwnerForOrg.mockResolvedValue(mockOwner);
+    service = moduleRef.get<OrganizationsService>(OrganizationsService);
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
+  beforeEach(() => {
+    jest.clearAllMocks();
+    membershipService.getOwnerForOrg.mockResolvedValue(mockOwner);
   });
 
   describe('create', () => {
@@ -248,7 +259,9 @@ describe('OrganizationsService', () => {
       await expect(service.getMembers('org-1', 'user-1')).rejects.toThrow(
         ForbiddenException
       );
-      expect(membershipService.getEffectiveMembersForOrg).not.toHaveBeenCalled();
+      expect(
+        membershipService.getEffectiveMembersForOrg
+      ).not.toHaveBeenCalled();
     });
 
     it('should return members list when user has access', async () => {
@@ -264,12 +277,16 @@ describe('OrganizationsService', () => {
         },
       ];
       effectiveRoleService.hasMinimumRole.mockResolvedValue(true);
-      membershipService.getEffectiveMembersForOrg = jest.fn().mockResolvedValue(members);
+      membershipService.getEffectiveMembersForOrg = jest
+        .fn()
+        .mockResolvedValue(members);
 
       const result = await service.getMembers('org-1', 'user-1');
 
       expect(result).toEqual(members);
-      expect(membershipService.getEffectiveMembersForOrg).toHaveBeenCalledWith('org-1');
+      expect(membershipService.getEffectiveMembersForOrg).toHaveBeenCalledWith(
+        'org-1'
+      );
     });
   });
 
@@ -363,7 +380,10 @@ describe('OrganizationsService', () => {
       effectiveRoleService.hasMinimumRole.mockResolvedValue(true);
       orgRepo.findOne.mockResolvedValue(childOrg);
 
-      const result = await service.findOne('child-1', 'user-with-parent-viewer');
+      const result = await service.findOne(
+        'child-1',
+        'user-with-parent-viewer'
+      );
 
       expect(result.id).toBe('child-1');
       expect(result.parentId).toBe('parent-1');
@@ -420,7 +440,9 @@ describe('OrganizationsService', () => {
 
       await service.delete('parent-1', 'owner-user');
 
-      expect(orgRepo.find).toHaveBeenCalledWith({ where: { parentId: 'parent-1' } });
+      expect(orgRepo.find).toHaveBeenCalledWith({
+        where: { parentId: 'parent-1' },
+      });
       expect(orgRepo.remove).toHaveBeenCalled();
     });
   });

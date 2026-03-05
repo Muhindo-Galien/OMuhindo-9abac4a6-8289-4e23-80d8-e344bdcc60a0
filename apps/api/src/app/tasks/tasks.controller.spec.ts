@@ -7,6 +7,7 @@ import { Repository } from 'typeorm';
 import { TasksController } from './tasks.controller';
 import { TasksService } from './tasks.service';
 import { EffectiveRoleService } from '../organizations/organizations.service';
+import { EnrichOrgRolesGuard } from '../organizations/enrich-org-roles.guard';
 
 // Import from shared libraries
 import {
@@ -87,7 +88,10 @@ describe('TasksController - POST /tasks', () => {
         { provide: AuditService, useValue: mockAuditService },
         { provide: EffectiveRoleService, useValue: effectiveRoleService },
       ],
-    }).compile();
+    })
+      .overrideGuard(EnrichOrgRolesGuard)
+      .useValue({ canActivate: jest.fn().mockResolvedValue(true) })
+      .compile();
 
     controller = module.get<TasksController>(TasksController);
     service = module.get<TasksService>(TasksService);
@@ -139,6 +143,14 @@ describe('TasksController - POST /tasks', () => {
     };
 
     beforeEach(() => {
+      // Service requires org to be a child (project) for task creation
+      organizationRepository.findOne.mockImplementation((opts: any) =>
+        Promise.resolve(
+          opts?.where?.id
+            ? ({ id: opts.where.id, parentId: 'parent-1' } as Organization)
+            : null
+        )
+      );
       // Setup default successful mocks
       taskRepository.create.mockReturnValue(mockCreatedTask as any);
       taskRepository.save.mockResolvedValue(mockCreatedTask as any);

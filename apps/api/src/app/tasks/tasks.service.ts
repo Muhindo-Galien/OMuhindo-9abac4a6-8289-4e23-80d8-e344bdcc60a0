@@ -40,6 +40,7 @@ export class TasksService {
     createTaskDto: CreateTaskDto,
     currentUser: { id: string; email: string }
   ): Promise<TaskResponseDto> {
+    // Org admin/owner enforced by @RequireOrgAdminOrOwner() + OrgRoleGuard on controller (org from body.organizationId).
     const effective = await this.effectiveRoleService.getEffectiveRole(
       currentUser.id,
       createTaskDto.organizationId
@@ -47,6 +48,16 @@ export class TasksService {
     if (!effective || getRoleLevel(effective) < getRoleLevel(RoleType.ADMIN)) {
       throw new ForbiddenException(
         'You need admin or owner role in this organization to create tasks'
+      );
+    }
+
+    const org = await this.organizationRepository.findOne({
+      where: { id: createTaskDto.organizationId },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+    if (org.parentId == null) {
+      throw new ForbiddenException(
+        'Tasks can only be created in project (child) organizations. Create a project under your workspace first, then create tasks there.'
       );
     }
 

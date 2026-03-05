@@ -22,3 +22,7 @@ export const Public = () => SetMetadata('isPublic', true);
 /** Org-scoped: require one of these roles in the org (param orgId or body organizationId). */
 export const OrgRoles = (...roles: RoleType[]) =>
   SetMetadata('org_roles', roles);
+
+/** Org-scoped: require admin or owner in the org (e.g. create task, send invite). Use with OrgRoleGuard + EnrichOrgRolesGuard. */
+export const RequireOrgAdminOrOwner = () =>
+  SetMetadata('org_roles', [RoleType.ADMIN, RoleType.OWNER]);

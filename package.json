@@ -14,11 +14,12 @@
     "test": "jest",
     "test:api": "nx run api:test",
     "test:api:skip-cache": "nx run api:test --skip-nx-cache",
+    "test:api:orgs": "NODE_OPTIONS=--max-old-space-size=16384 nx run api:test --testPathPattern=organizations.service.spec --runInBand",
+    "test:organizations": "NODE_OPTIONS=--max-old-space-size=16384 nx run api:test --testPathPattern=organization --skip-nx-cache --runInBand",
     "test:auth": "nx run auth:test",
     "test:auth:skip-cache": "nx run auth:test --skip-nx-cache",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
-    
   },
   "private": true,
   "dependencies": {

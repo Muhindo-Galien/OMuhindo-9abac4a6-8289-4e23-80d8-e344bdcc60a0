@@ -7,11 +7,13 @@ import {
   ManyToOne,
   OneToMany,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { OrganizationMember } from './organization-member.model';
 import { Invitation } from './invitation.model';
 
 @Entity('organizations')
+@Index(['parentId'])
 export class Organization {
   @PrimaryGeneratedColumn('uuid')
   id: string;

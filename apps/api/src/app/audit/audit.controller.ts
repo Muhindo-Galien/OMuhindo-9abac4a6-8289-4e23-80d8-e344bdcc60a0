@@ -9,6 +9,7 @@ import {
   ClassSerializerInterceptor,
   BadRequestException,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import {
   AuditLogQueryDto,
   AuditLogResponseDto,
@@ -19,6 +20,7 @@ import { JwtAuthGuard, CurrentUser, OrgRoles, OrgRoleGuard } from '@auth';
 import { EnrichOrgRolesGuard } from '../organizations/enrich-org-roles.guard';
 import { AuditService } from './audit.service';
 
+@ApiTags('audit-log')
 @Controller('audit-log')
 @UseGuards(JwtAuthGuard, EnrichOrgRolesGuard, OrgRoleGuard)
 @UseInterceptors(ClassSerializerInterceptor)

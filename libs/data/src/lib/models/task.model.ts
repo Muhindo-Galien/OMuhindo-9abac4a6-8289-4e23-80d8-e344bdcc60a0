@@ -5,6 +5,7 @@ import {
   ManyToOne,
   CreateDateColumn,
   UpdateDateColumn,
+  Index,
 } from 'typeorm';
 import { User } from './user.model';
 import { Organization } from './organization.model';
@@ -32,6 +33,10 @@ export enum TaskCategory {
 }
 
 @Entity('tasks')
+@Index(['organizationId'])
+@Index(['ownerId'])
+@Index(['status'])
+@Index(['organizationId', 'status'])
 export class Task {
   @PrimaryGeneratedColumn('uuid')
   id: string;

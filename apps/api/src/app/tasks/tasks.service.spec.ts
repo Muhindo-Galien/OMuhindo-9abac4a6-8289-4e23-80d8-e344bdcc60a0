@@ -159,7 +159,14 @@ describe('TasksService', () => {
         { id: 'org-sub-456', name: 'Sub', parentId: 'org-123' },
         { id: 'org-different-123', name: 'Different', parentId: null },
       ]),
-      findOne: jest.fn(),
+      findOne: jest.fn().mockImplementation((opts: { where?: { id?: string } }) => {
+        const id = opts?.where?.id;
+        if (!id) return Promise.resolve(null);
+        if (id === 'org-123') return Promise.resolve({ id, parentId: 'parent-1' });
+        if (id === 'org-sub-456') return Promise.resolve({ id, parentId: 'org-123' });
+        if (id === 'org-different-123') return Promise.resolve({ id, parentId: 'other' });
+        return Promise.resolve(null);
+      }),
     };
 
     const mockUserRepo = {
@@ -271,6 +278,8 @@ describe('TasksService', () => {
       });
 
       it('should deny Viewer from creating tasks', async () => {
+        effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.VIEWER);
+
         await expect(
           service.createTask(createTaskDto, viewerUser)
         ).rejects.toThrow(ForbiddenException);
@@ -532,24 +541,25 @@ describe('TasksService', () => {
         organizationId: 'org-123',
       };
 
-      it('should allow creating task in parent org as owner', async () => {
-        const parentOrgId = 'org-123';
+      it('should forbid creating task in parent org (tasks only in child/project orgs)', async () => {
+        const parentOrgId = 'parent-workspace-1';
+        organizationRepository.findOne.mockResolvedValue({
+          id: parentOrgId,
+          parentId: undefined,
+        } as any);
         const dto: CreateTaskDto = {
           ...baseCreateDto,
           organizationId: parentOrgId,
         };
-        const saved = { ...ownerTask, organizationId: parentOrgId };
-        taskRepository.create.mockReturnValue(saved as any);
-        taskRepository.save.mockResolvedValue(saved as any);
-        taskRepository.findOne.mockResolvedValue(saved as any);
         effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.OWNER);
 
-        const result = await service.createTask(dto, ownerUser);
-        expect(result.organizationId).toBe(parentOrgId);
-        expect(effectiveRoleService.getEffectiveRole).toHaveBeenCalledWith(
-          ownerUser.id,
-          parentOrgId
+        await expect(service.createTask(dto, ownerUser)).rejects.toThrow(
+          ForbiddenException
         );
+        await expect(service.createTask(dto, ownerUser)).rejects.toThrow(
+          'Tasks can only be created in project (child) organizations'
+        );
+        expect(taskRepository.save).not.toHaveBeenCalled();
       });
 
       it('should allow creating task in child org when user has inherited owner from parent', async () => {
@@ -1288,10 +1298,11 @@ describe('TasksService', () => {
         title: '',
         description: '',
         priority: 'INVALID',
+        organizationId: 'org-123',
       } as any;
 
       // The service doesn't validate input (that's done at controller level)
-      // But it should handle unexpected values gracefully
+      // But it should handle unexpected values gracefully (org-123 is a child org in default mock)
       taskRepository.create.mockReturnValue({} as any);
       taskRepository.save.mockResolvedValue({ id: 'test-task' } as any);
       taskRepository.findOne.mockResolvedValue({

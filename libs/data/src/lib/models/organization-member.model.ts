@@ -6,6 +6,7 @@ import {
   JoinColumn,
   CreateDateColumn,
   Unique,
+  Index,
 } from 'typeorm';
 import { User } from './user.model';
 import { Organization } from './organization.model';
@@ -17,6 +18,8 @@ import { RoleType } from './role.model';
  */
 @Entity('organization_members')
 @Unique(['userId', 'organizationId'])
+@Index(['organizationId'])
+@Index(['userId'])
 export class OrganizationMember {
   @PrimaryGeneratedColumn('uuid')
   id: string;

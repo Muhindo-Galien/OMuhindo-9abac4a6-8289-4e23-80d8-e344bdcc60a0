@@ -13,6 +13,7 @@ import {
   UseInterceptors,
   ClassSerializerInterceptor,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 
 // Import from libs
 import {
@@ -23,11 +24,20 @@ import {
   BulkUpdateTaskDto,
   RoleType,
 } from '@data';
-import { JwtAuthGuard, CurrentUser, Roles, RolesGuard } from '@auth';
+import {
+  JwtAuthGuard,
+  CurrentUser,
+  Roles,
+  RolesGuard,
+  OrgRoleGuard,
+  RequireOrgAdminOrOwner,
+} from '@auth';
 
-// Local service
+// Local
+import { EnrichOrgRolesGuard } from '../organizations/enrich-org-roles.guard';
 import { TasksService } from './tasks.service';
 
+@ApiTags('tasks')
 @Controller('tasks')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @UseInterceptors(ClassSerializerInterceptor)
@@ -36,6 +46,8 @@ export class TasksController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @UseGuards(EnrichOrgRolesGuard, OrgRoleGuard)
+  @RequireOrgAdminOrOwner()
   @Roles(RoleType.VIEWER)
   async createTask(
     @Body() createTaskDto: CreateTaskDto,

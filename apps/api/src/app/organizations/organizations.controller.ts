@@ -10,6 +10,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import {
   CreateOrganizationDto,
   UpdateOrganizationDto,
@@ -26,6 +27,7 @@ export interface CreateOrganizationResponse {
   access_token: string;
 }
 
+@ApiTags('organizations')
 @Controller('organizations')
 @UseGuards(JwtAuthGuard, EnrichOrgRolesGuard)
 export class OrganizationsController {
