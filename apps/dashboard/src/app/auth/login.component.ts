@@ -6,13 +6,13 @@ import {
   FormGroup,
   Validators,
 } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink],
   template: `
     <div
       class="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8"
@@ -146,6 +146,17 @@ import { AuthService } from '../services/auth.service';
                 Signing in...
               </span>
             </button>
+          </div>
+
+          <!-- Register Link -->
+          <div class="text-center text-sm text-gray-600">
+            Don't have an account?
+            <a
+              routerLink="/register"
+              class="font-medium text-primary-600 hover:text-primary-500"
+            >
+              Create one
+            </a>
           </div>
 
           <!-- Demo Credentials -->

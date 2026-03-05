@@ -3,7 +3,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
 import { catchError, tap, map } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
-import { AuthResponseDto, LoginDto, UserProfile, RoleType } from '@data';
+import { AuthResponseDto, LoginDto, RegisterDto, UserProfile, RoleType } from '@data';
 
 export interface User extends UserProfile {
   organizationName?: string;
@@ -42,6 +42,18 @@ export class AuthService {
       .pipe(
         tap(response => {
           console.log('Login successful, storing token and user data');
+          this.setSession(response);
+        }),
+        catchError(this.handleError)
+      );
+  }
+
+  register(data: RegisterDto): Observable<AuthResponseDto> {
+    return this.http
+      .post<AuthResponseDto>(`${this.API_URL}/auth/register`, data)
+      .pipe(
+        tap(response => {
+          console.log('Registration successful, storing token and user data');
           this.setSession(response);
         }),
         catchError(this.handleError)

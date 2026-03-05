@@ -13,6 +13,11 @@ export const appRoutes: Route[] = [
       import('./auth/login.component').then(c => c.LoginComponent),
   },
   {
+    path: 'register',
+    loadComponent: () =>
+      import('./auth/register.component').then(c => c.RegisterComponent),
+  },
+  {
     path: 'dashboard',
     canActivate: [AuthGuard],
     loadComponent: () =>
