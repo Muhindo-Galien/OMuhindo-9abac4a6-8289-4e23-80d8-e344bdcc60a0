@@ -43,18 +43,20 @@ export class RolesGuard implements CanActivate {
   }
 
   /**
-   * Validate role hierarchy (higher roles inherit lower role permissions)
+   * Validate role hierarchy. Global role "user" is treated as viewer-level for route access.
    */
   private validateRoleHierarchy(
-    userRole: RoleType,
+    userRole: string | RoleType,
     requiredRole: RoleType
   ): boolean {
-    const roleHierarchy = {
+    const roleHierarchy: Record<string, number> = {
       [RoleType.VIEWER]: 0,
       [RoleType.ADMIN]: 1,
       [RoleType.OWNER]: 2,
+      user: 0, // global role "user" satisfies viewer
     };
-
-    return roleHierarchy[userRole] >= roleHierarchy[requiredRole];
+    const userLevel = roleHierarchy[userRole] ?? -1;
+    const requiredLevel = roleHierarchy[requiredRole] ?? 0;
+    return userLevel >= requiredLevel;
   }
 }

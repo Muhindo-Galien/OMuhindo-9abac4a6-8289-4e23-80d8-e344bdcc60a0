@@ -3,10 +3,12 @@ import {
   PrimaryGeneratedColumn,
   Column,
   ManyToOne,
+  JoinColumn,
   CreateDateColumn,
   Index,
 } from 'typeorm';
 import { User } from './user.model';
+import { Organization } from './organization.model';
 
 export enum AuditAction {
   CREATE = 'create',
@@ -17,6 +19,13 @@ export enum AuditAction {
   LOGOUT = 'logout',
   REGISTER = 'register',
   BULK_UPDATE = 'bulk_update',
+  INVITE_SENT = 'invite_sent',
+  INVITE_ACCEPTED = 'invite_accepted',
+  INVITE_EXPIRED = 'invite_expired',
+  INVITE_CANCELLED = 'invite_cancelled',
+  MEMBERSHIP_ADDED = 'membership_added',
+  MEMBERSHIP_REVOKED = 'membership_revoked',
+  ROLE_CHANGED = 'role_changed',
 }
 
 export enum AuditResource {
@@ -25,23 +34,33 @@ export enum AuditResource {
   ORGANIZATION = 'organization',
   AUTH = 'auth',
   AUDIT_LOG = 'audit_log',
+  INVITATION = 'invitation',
+  MEMBERSHIP = 'membership',
 }
 
 @Entity('audit_logs')
 @Index(['userId', 'timestamp'])
 @Index(['resource', 'timestamp'])
 @Index(['action', 'timestamp'])
+@Index(['organizationId', 'timestamp'])
 export class AuditLog {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  // Foreign key to user who performed the action
   @Column({ type: 'uuid' })
   userId: string;
 
-  // Many-to-one relationship with user
   @ManyToOne(() => User, { eager: true })
+  @JoinColumn({ name: 'userId' })
   user: User;
+
+  /** Org context for org-scoped resources (task, organization, invitation, membership). Null for global (e.g. auth). */
+  @Column({ type: 'uuid', nullable: true })
+  organizationId?: string | null;
+
+  @ManyToOne(() => Organization, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'organizationId' })
+  organization?: Organization | null;
 
   @Column({ type: 'varchar', length: 50 })
   action: AuditAction;

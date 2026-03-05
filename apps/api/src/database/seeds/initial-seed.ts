@@ -1,115 +1,119 @@
 import { DataSource } from 'typeorm';
-import { Organization } from '../../../../../libs/data/src/lib/models/organization.model';
-import { Role, RoleType, DEFAULT_ROLE_PERMISSIONS } from '../../../../../libs/data/src/lib/models/role.model';
-import { User } from '../../../../../libs/data/src/lib/models/user.model';
-import { Task, TaskStatus, TaskPriority, TaskCategory } from '../../../../../libs/data/src/lib/models/task.model';
+import {
+  Organization,
+  Role,
+  RoleType,
+  DEFAULT_ROLE_PERMISSIONS,
+  User,
+  OrganizationMember,
+  Task,
+  TaskStatus,
+  TaskPriority,
+  TaskCategory,
+  GLOBAL_ROLE_USER,
+} from '@data';
 import * as bcrypt from 'bcrypt';
 
 export class InitialSeedService {
   constructor(private dataSource: DataSource) {}
 
   async run(): Promise<void> {
-    console.log('🌱 Simple seeding...');
-
-    // Create some basic data
+    console.log('🌱 Seeding...');
     const org = await this.createOrg();
-    const roles = await this.createRole();
+    const roles = await this.createRoles();
     const users = await this.createUsers(org, roles);
     await this.createTasks(users, org);
-
-    console.log('✅ Simple seeding done!');
+    console.log('✅ Seeding done!');
   }
 
   private async createOrg() {
     const repo = this.dataSource.getRepository(Organization);
     const existing = await repo.findOne({ where: { name: 'TurboVets' } });
     if (existing) return existing;
-
     return await repo.save({
       name: 'TurboVets',
-      description: 'Main organization'
+      description: 'Main organization',
     });
   }
 
-  private async createRole() {
+  private async createRoles() {
     const repo = this.dataSource.getRepository(Role);
-    
-    // Check if we have all three required roles
-    const viewerRole = await repo.findOne({ where: { name: RoleType.VIEWER } });
-    const adminRole = await repo.findOne({ where: { name: RoleType.ADMIN } });
-    const ownerRole = await repo.findOne({ where: { name: RoleType.OWNER } });
-    
-    if (viewerRole && adminRole && ownerRole) {
-      console.log('👑 All roles already exist, skipping...');
-      return [viewerRole, adminRole, ownerRole];
-    }
-
-    console.log('👑 Creating missing roles...');
-
-    // Create all three roles as specified in context
     const roles = [
       {
         name: RoleType.VIEWER,
         description: 'Can view tasks',
         level: 0,
-        permissionIds: DEFAULT_ROLE_PERMISSIONS[RoleType.VIEWER]
+        permissionIds: DEFAULT_ROLE_PERMISSIONS[RoleType.VIEWER],
       },
       {
         name: RoleType.ADMIN,
         description: 'Can manage tasks and users',
         level: 1,
-        permissionIds: DEFAULT_ROLE_PERMISSIONS[RoleType.ADMIN]
+        permissionIds: DEFAULT_ROLE_PERMISSIONS[RoleType.ADMIN],
       },
       {
         name: RoleType.OWNER,
-        description: 'Full access to everything',
+        description: 'Full access',
         level: 2,
-        permissionIds: DEFAULT_ROLE_PERMISSIONS[RoleType.OWNER]
-      }
+        permissionIds: DEFAULT_ROLE_PERMISSIONS[RoleType.OWNER],
+      },
     ];
-
-    const createdRoles = [];
-    for (const roleData of roles) {
-      // Check if this specific role exists first
-      let role = await repo.findOne({ where: { name: roleData.name } });
+    const result: Role[] = [];
+    for (const r of roles) {
+      let role = await repo.findOne({ where: { name: r.name } });
       if (!role) {
-        role = await repo.save(roleData);
+        role = await repo.save(r);
         console.log(`👑 Created role: ${role.name}`);
-      } else {
-        console.log(`👑 Role ${role.name} already exists`);
       }
-      createdRoles.push(role);
+      result.push(role);
     }
-
-    return createdRoles;
+    return result;
   }
 
-  private async createUsers(org: Organization, roles: Role[]) {
-    const repo = this.dataSource.getRepository(User);
-    const existing = await repo.count();
-    if (existing > 0) return await repo.find();
+  private async createUsers(org: Organization, _roles: Role[]) {
+    const userRepo = this.dataSource.getRepository(User);
+    const memberRepo = this.dataSource.getRepository(OrganizationMember);
+    const existing = await userRepo.count();
+    if (existing > 0) return await userRepo.find();
 
-    const hashedPassword = await bcrypt.hash('password123', 10);
-
-    // Assign different roles to different users
-    const users = [];
-    const userConfigs = [
-      { email: 'owner@turbovets.com', firstName: 'Owner', lastName: 'User', role: roles.find(r => r.name === RoleType.OWNER) },
-      { email: 'admin@turbovets.com', firstName: 'Admin', lastName: 'User', role: roles.find(r => r.name === RoleType.ADMIN) },
-      { email: 'viewer@turbovets.com', firstName: 'Viewer', lastName: 'User', role: roles.find(r => r.name === RoleType.VIEWER) }
+    const hashed = await bcrypt.hash('password123', 10);
+    const configs = [
+      {
+        email: 'owner@turbovets.com',
+        firstName: 'Owner',
+        lastName: 'User',
+        role: RoleType.OWNER,
+      },
+      {
+        email: 'admin@turbovets.com',
+        firstName: 'Admin',
+        lastName: 'User',
+        role: RoleType.ADMIN,
+      },
+      {
+        email: 'viewer@turbovets.com',
+        firstName: 'Viewer',
+        lastName: 'User',
+        role: RoleType.VIEWER,
+      },
     ];
-
-    for (const config of userConfigs) {
-      const user = await repo.save({
-        email: config.email,
-        password: hashedPassword,
-        firstName: config.firstName,
-        lastName: config.lastName,
-        organizationId: org.id,
-        roleId: config.role.id
+    const users: User[] = [];
+    for (const c of configs) {
+      const user = await userRepo.save({
+        email: c.email,
+        password: hashed,
+        firstName: c.firstName,
+        lastName: c.lastName,
+        globalRole: GLOBAL_ROLE_USER,
+        isActive: true,
       });
       users.push(user);
-      console.log(`👤 Created user: ${user.email} (${config.role.name})`);
+      await memberRepo.save({
+        userId: user.id,
+        organizationId: org.id,
+        role: c.role,
+      });
+      console.log(`👤 Created user: ${user.email} (${c.role})`);
     }
     return users;
   }
@@ -127,38 +131,36 @@ export class InitialSeedService {
         priority: TaskPriority.HIGH,
         category: TaskCategory.WORK,
         ownerId: users[0].id,
-        organizationId: org.id
+        organizationId: org.id,
       },
       {
-        title: 'Task 2', 
+        title: 'Task 2',
         description: 'Second task',
         status: TaskStatus.IN_PROGRESS,
         priority: TaskPriority.MEDIUM,
         category: TaskCategory.PROJECT,
         ownerId: users[1].id,
-        organizationId: org.id
+        organizationId: org.id,
       },
       {
         title: 'Task 3',
-        description: 'Third task', 
+        description: 'Third task',
         status: TaskStatus.DONE,
         priority: TaskPriority.LOW,
         category: TaskCategory.PERSONAL,
         ownerId: users[2].id,
         organizationId: org.id,
-        completedAt: new Date()
-      }
+        completedAt: new Date(),
+      },
     ];
-
-    for (const taskData of tasks) {
-      const task = await repo.save(taskData);
-      console.log(`📝 Created task: ${task.title}`);
+    for (const t of tasks) {
+      await repo.save(t);
+      console.log(`📝 Created task: ${t.title}`);
     }
   }
 }
 
-// Standalone seeding function for command line use
 export async function seedDatabase(dataSource: DataSource): Promise<void> {
   const seedService = new InitialSeedService(dataSource);
   await seedService.run();
-} 
+}

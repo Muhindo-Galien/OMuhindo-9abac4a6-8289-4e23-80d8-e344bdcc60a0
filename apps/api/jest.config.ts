@@ -11,9 +11,7 @@ export default {
     '^@data(.*)$': '<rootDir>/../../libs/data/src$1',
     '^@auth(.*)$': '<rootDir>/../../libs/auth/src$1',
   },
-  testMatch: [
-    '<rootDir>/src/**/*.(test|spec).ts',
-  ],
+  testMatch: ['<rootDir>/src/**/*.(test|spec).ts'],
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.spec.ts',
@@ -21,4 +19,6 @@ export default {
     '!src/**/*.d.ts',
     '!src/main.ts',
   ],
-}; 
+  // Reduce workers to avoid OOM when running org/task specs (heavy Nest + TypeORM graph)
+  maxWorkers: 2,
+};

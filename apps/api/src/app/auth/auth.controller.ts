@@ -1,35 +1,38 @@
-import { 
-  Controller, 
-  Post, 
-  Body, 
-  HttpCode, 
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
   HttpStatus,
+  UseGuards,
   UseInterceptors,
-  ClassSerializerInterceptor 
+  ClassSerializerInterceptor,
 } from '@nestjs/common';
-
-// Import from libs
 import { RegisterDto, LoginDto, AuthResponseDto } from '@data';
-
-// Local service
+import { JwtAuthGuard, CurrentUser } from '@auth';
 import { AuthApplicationService } from './auth.service';
 
 @Controller('auth')
-@UseInterceptors(ClassSerializerInterceptor) // Exclude sensitive fields like password
+@UseInterceptors(ClassSerializerInterceptor)
 export class AuthController {
-  constructor(
-    private authApplicationService: AuthApplicationService
-  ) {}
+  constructor(private authApplicationService: AuthApplicationService) {}
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   async register(@Body() registerDto: RegisterDto): Promise<AuthResponseDto> {
-    return await this.authApplicationService.register(registerDto);
+    return this.authApplicationService.register(registerDto);
   }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Body() loginDto: LoginDto): Promise<AuthResponseDto> {
-    return await this.authApplicationService.login(loginDto);
+    return this.authApplicationService.login(loginDto);
   }
-} 
+
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  async refresh(@CurrentUser() user: { id: string }): Promise<AuthResponseDto> {
+    return this.authApplicationService.refresh(user.id);
+  }
+}

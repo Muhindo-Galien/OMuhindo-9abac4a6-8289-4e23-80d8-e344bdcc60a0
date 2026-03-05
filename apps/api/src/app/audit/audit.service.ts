@@ -1,27 +1,29 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindManyOptions, Like, Between } from 'typeorm';
+import { Repository, FindManyOptions, Like, Between, In } from 'typeorm';
 
-// Import from libs
-import { 
-  AuditLog, 
-  AuditAction, 
+import {
+  AuditLog,
+  AuditAction,
   AuditResource,
-  CreateAuditLogDto, 
-  AuditLogResponseDto, 
+  CreateAuditLogDto,
+  AuditLogResponseDto,
   AuditLogQueryDto,
-  PaginatedResponse 
+  PaginatedResponse,
+  Organization,
 } from '@data';
 
 @Injectable()
 export class AuditService {
   constructor(
     @InjectRepository(AuditLog)
-    private auditLogRepository: Repository<AuditLog>
+    private auditLogRepository: Repository<AuditLog>,
+    @InjectRepository(Organization)
+    private orgRepository: Repository<Organization>
   ) {}
 
   /**
-   * Log an action to the audit trail
+   * Log an action to the audit trail. Pass organizationId for org-scoped resources (task, organization, invitation, membership).
    */
   async logAction(
     userId: string,
@@ -29,6 +31,7 @@ export class AuditService {
     resource: AuditResource,
     options: {
       resourceId?: string;
+      organizationId?: string | null;
       details?: Record<string, any>;
       ipAddress?: string;
       userAgent?: string;
@@ -36,18 +39,13 @@ export class AuditService {
       errorMessage?: string;
     } = {}
   ): Promise<AuditLog> {
-    console.log('=== AUDIT LOG START ===');
-    console.log('User ID:', userId);
-    console.log('Action:', action);
-    console.log('Resource:', resource);
-    console.log('Options:', options);
-
     try {
       const auditLogData: CreateAuditLogDto = {
         userId,
         action,
         resource,
         resourceId: options.resourceId,
+        organizationId: options.organizationId ?? undefined,
         details: options.details,
         ipAddress: options.ipAddress,
         userAgent: options.userAgent,
@@ -57,220 +55,172 @@ export class AuditService {
 
       const auditLog = this.auditLogRepository.create(auditLogData);
       const savedLog = await this.auditLogRepository.save(auditLog);
-
-      // Console logging for immediate visibility
-      const logMessage = `[AUDIT] ${action.toUpperCase()} ${resource.toUpperCase()}` + 
-        (options.resourceId ? ` (ID: ${options.resourceId})` : '') +
-        ` by User ${userId}` +
-        (options.success === false ? ' - FAILED' : ' - SUCCESS');
-      
-      if (options.success === false) {
-        console.log(logMessage + (options.errorMessage ? `: ${options.errorMessage}` : ''));
-      } else {
-        console.log(logMessage);
-      }
-
-      console.log('Audit log saved successfully:', savedLog.id);
-      console.log('=== AUDIT LOG END ===');
-
       return savedLog;
     } catch (error) {
-      console.log('=== AUDIT LOG ERROR ===');
       console.error('Error saving audit log:', error);
       throw error;
     }
   }
 
-  /**
-   * Get audit logs with filtering and pagination
-   */
-  async getAuditLogs(
-    queryDto: AuditLogQueryDto,
-    currentUser: any
-  ): Promise<PaginatedResponse<AuditLogResponseDto>> {
-    console.log('=== GET AUDIT LOGS START ===');
-    console.log('Query parameters:', queryDto);
-    console.log('Current user:', currentUser.id, currentUser.email, currentUser.role);
-
-    try {
-      const { 
-        page = 1, 
-        limit = 20, 
-        sortBy = 'timestamp', 
-        sortOrder = 'DESC',
-        userId,
-        action,
-        resource,
-        resourceId,
-        startDate,
-        endDate,
-        success,
-        search
-      } = queryDto;
-
-      // Build query conditions
-      const where: any = {};
-
-      // Apply filters
-      if (userId) {
-        where.userId = userId;
-      }
-
-      if (action) {
-        where.action = action;
-      }
-
-      if (resource) {
-        where.resource = resource;
-      }
-
-      if (resourceId) {
-        where.resourceId = resourceId;
-      }
-
-      if (success !== undefined) {
-        where.success = success;
-      }
-
-      // Date range filter
-      if (startDate || endDate) {
-        where.timestamp = Between(
-          startDate ? new Date(startDate) : new Date('1970-01-01'),
-          endDate ? new Date(endDate) : new Date()
-        );
-      }
-
-      // Search functionality (search in error messages and details)
-      if (search) {
-        // Note: For more complex search, you might want to use raw SQL
-        where.errorMessage = Like(`%${search}%`);
-      }
-
-      // Pagination
-      const skip = (page - 1) * limit;
-
-      // Build find options
-      const findOptions: FindManyOptions<AuditLog> = {
-        where,
-        relations: ['user'],
-        skip,
-        take: limit,
-        order: { [sortBy]: sortOrder },
-      };
-
-      console.log('Executing query with options:', {
-        where,
-        skip,
-        take: limit,
-        order: { [sortBy]: sortOrder }
-      });
-
-      const [auditLogs, total] = await this.auditLogRepository.findAndCount(findOptions);
-
-      console.log(`Found ${auditLogs.length} audit logs out of ${total} total`);
-
-      // Map to response DTOs
-      const data: AuditLogResponseDto[] = auditLogs.map(log => ({
-        id: log.id,
-        userId: log.userId,
-        userEmail: log.user?.email || 'Unknown',
-        userFullName: log.user?.fullName || 'Unknown User',
-        action: log.action,
-        resource: log.resource,
-        resourceId: log.resourceId,
-        details: log.details,
-        ipAddress: log.ipAddress,
-        userAgent: log.userAgent,
-        timestamp: log.timestamp,
-        success: log.success,
-        errorMessage: log.errorMessage,
-        actionDescription: log.actionDescription,
-      }));
-
-      const result: PaginatedResponse<AuditLogResponseDto> = {
-        data,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-          hasNextPage: page < Math.ceil(total / limit),
-          hasPrevPage: page > 1,
-        },
-      };
-
-      console.log('=== GET AUDIT LOGS SUCCESS ===');
-      return result;
-    } catch (error) {
-      console.log('=== GET AUDIT LOGS ERROR ===');
-      console.error('Error fetching audit logs:', error);
-      throw error;
+  /** Resolve org id and all descendant org ids (for includeChildOrgs). */
+  private async getOrgAndDescendantIds(orgId: string): Promise<string[]> {
+    const ids: string[] = [orgId];
+    const children = await this.orgRepository.find({ where: { parentId: orgId } });
+    for (const c of children) {
+      ids.push(...(await this.getOrgAndDescendantIds(c.id)));
     }
+    return ids;
   }
 
   /**
-   * Get audit statistics (for dashboard/reporting)
+   * Get audit logs with filtering and pagination. Caller must be admin/owner of organizationId (enforced by controller).
+   * organizationId required: only logs for that org (and optionally its children when includeChildOrgs) are returned.
    */
-  async getAuditStats(currentUser: any): Promise<{
+  async getAuditLogs(
+    queryDto: AuditLogQueryDto,
+    currentUser: { id: string }
+  ): Promise<PaginatedResponse<AuditLogResponseDto>> {
+    const {
+      page = 1,
+      limit = 20,
+      sortBy = 'timestamp',
+      sortOrder = 'DESC',
+      organizationId,
+      includeChildOrgs,
+      userId,
+      action,
+      resource,
+      resourceId,
+      startDate,
+      endDate,
+      success,
+      search,
+    } = queryDto;
+
+    const where: any = {};
+
+    if (organizationId) {
+      if (includeChildOrgs) {
+        const orgIds = await this.getOrgAndDescendantIds(organizationId);
+        where.organizationId = In(orgIds);
+      } else {
+        where.organizationId = organizationId;
+      }
+    }
+
+    if (userId) where.userId = userId;
+    if (action) where.action = action;
+    if (resource) where.resource = resource;
+    if (resourceId) where.resourceId = resourceId;
+    if (success !== undefined) where.success = success;
+
+    if (startDate || endDate) {
+      where.timestamp = Between(
+        startDate ? new Date(startDate) : new Date('1970-01-01'),
+        endDate ? new Date(endDate) : new Date()
+      );
+    }
+
+    if (search) where.errorMessage = Like(`%${search}%`);
+
+    const skip = (page - 1) * limit;
+    const findOptions: FindManyOptions<AuditLog> = {
+      where,
+      relations: ['user'],
+      skip,
+      take: limit,
+      order: { [sortBy]: sortOrder },
+    };
+
+    const [auditLogs, total] = await this.auditLogRepository.findAndCount(findOptions);
+
+    const data: AuditLogResponseDto[] = auditLogs.map(log => ({
+      id: log.id,
+      userId: log.userId,
+      userEmail: log.user?.email || 'Unknown',
+      userFullName: log.user?.fullName || 'Unknown User',
+      organizationId: log.organizationId ?? undefined,
+      action: log.action,
+      resource: log.resource,
+      resourceId: log.resourceId,
+      details: log.details,
+      ipAddress: log.ipAddress,
+      userAgent: log.userAgent,
+      timestamp: log.timestamp,
+      success: log.success,
+      errorMessage: log.errorMessage,
+      actionDescription: log.actionDescription,
+    }));
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page < Math.ceil(total / limit),
+        hasPrevPage: page > 1,
+      },
+    };
+  }
+
+  /**
+   * Get audit statistics for an org. Caller must be admin/owner of organizationId (enforced by controller).
+   */
+  async getAuditStats(
+    organizationId: string,
+    includeChildOrgs?: boolean
+  ): Promise<{
     totalLogs: number;
     successfulActions: number;
     failedActions: number;
     actionBreakdown: Record<string, number>;
     resourceBreakdown: Record<string, number>;
   }> {
-    console.log('=== GET AUDIT STATS START ===');
+    const orgIds = includeChildOrgs
+      ? await this.getOrgAndDescendantIds(organizationId)
+      : [organizationId];
+    const where = orgIds.length === 1
+      ? { organizationId: orgIds[0] }
+      : { organizationId: In(orgIds) };
 
-    try {
-      const [
-        totalLogs,
-        successfulActions,
-        failedActions,
-        actionStats,
-        resourceStats
-      ] = await Promise.all([
-        this.auditLogRepository.count(),
-        this.auditLogRepository.count({ where: { success: true } }),
-        this.auditLogRepository.count({ where: { success: false } }),
-        this.auditLogRepository
-          .createQueryBuilder('audit')
-          .select('audit.action', 'action')
-          .addSelect('COUNT(*)', 'count')
-          .groupBy('audit.action')
-          .getRawMany(),
-        this.auditLogRepository
-          .createQueryBuilder('audit')
-          .select('audit.resource', 'resource')
-          .addSelect('COUNT(*)', 'count')
-          .groupBy('audit.resource')
-          .getRawMany()
-      ]);
+    const [totalLogs, successfulActions, failedActions, actionStatsRes, resourceStatsRes] = await Promise.all([
+      this.auditLogRepository.count({ where }),
+      this.auditLogRepository.count({ where: { ...where, success: true } }),
+      this.auditLogRepository.count({ where: { ...where, success: false } }),
+      this.auditLogRepository
+        .createQueryBuilder('audit')
+        .where(orgIds.length === 1 ? 'audit.organizationId = :orgId' : 'audit.organizationId IN (:...orgIds)', orgIds.length === 1 ? { orgId: orgIds[0] } : { orgIds })
+        .select('audit.action', 'action')
+        .addSelect('COUNT(*)', 'count')
+        .groupBy('audit.action')
+        .getRawMany(),
+      this.auditLogRepository
+        .createQueryBuilder('audit')
+        .where(orgIds.length === 1 ? 'audit.organizationId = :orgId' : 'audit.organizationId IN (:...orgIds)', orgIds.length === 1 ? { orgId: orgIds[0] } : { orgIds })
+        .select('audit.resource', 'resource')
+        .addSelect('COUNT(*)', 'count')
+        .groupBy('audit.resource')
+        .getRawMany(),
+    ]);
 
-      const actionBreakdown = actionStats.reduce((acc, stat) => {
-        acc[stat.action] = parseInt(stat.count);
-        return acc;
-      }, {});
+    const actionBreakdown = (actionStatsRes || []).reduce((acc: Record<string, number>, stat: any) => {
+      acc[stat.action] = parseInt(stat.count, 10);
+      return acc;
+    }, {});
 
-      const resourceBreakdown = resourceStats.reduce((acc, stat) => {
-        acc[stat.resource] = parseInt(stat.count);
-        return acc;
-      }, {});
+    const resourceBreakdown = (resourceStatsRes || []).reduce((acc: Record<string, number>, stat: any) => {
+      acc[stat.resource] = parseInt(stat.count, 10);
+      return acc;
+    }, {});
 
-      const stats = {
-        totalLogs,
-        successfulActions,
-        failedActions,
-        actionBreakdown,
-        resourceBreakdown,
-      };
-
-      console.log('Audit statistics:', stats);
-      console.log('=== GET AUDIT STATS SUCCESS ===');
-
-      return stats;
-    } catch (error) {
-      console.log('=== GET AUDIT STATS ERROR ===');
-      console.error('Error fetching audit stats:', error);
-      throw error;
-    }
+    return {
+      totalLogs,
+      successfulActions,
+      failedActions,
+      actionBreakdown,
+      resourceBreakdown,
+    };
   }
-} 
+}

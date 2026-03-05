@@ -3,7 +3,7 @@ import {
   IsString,
   MinLength,
   IsOptional,
-  IsUUID,
+  MaxLength,
 } from 'class-validator';
 import { RoleType } from '../models/role.model';
 
@@ -17,7 +17,7 @@ export class LoginDto {
   password: string;
 }
 
-// Register DTO
+// Register DTO – no org, no role. Optional: create workspace in same request.
 export class RegisterDto {
   @IsEmail()
   email: string;
@@ -28,51 +28,57 @@ export class RegisterDto {
 
   @IsString()
   @MinLength(2)
+  @MaxLength(100)
   firstName: string;
 
   @IsString()
   @MinLength(2)
+  @MaxLength(100)
   lastName: string;
 
-  @IsUUID()
-  organizationId: string;
-
+  /** If set, create a parent org (workspace) and add user as owner in same transaction. */
   @IsOptional()
-  @IsUUID()
-  roleId?: string; // Optional, defaults to VIEWER if not provided
+  @IsString()
+  @MinLength(1)
+  @MaxLength(255)
+  createOrgName?: string;
+
+  /** If set and valid, accept the invitation after registration and add membership. */
+  @IsOptional()
+  @IsString()
+  inviteToken?: string;
 }
 
-// JWT Payload Interface
+// JWT payload: global role only at login; org_roles only when present (e.g. after refresh).
 export interface JwtPayload {
-  sub: string; // User ID
+  sub: string;
   email: string;
-  role: RoleType;
-  roleLevel: number;
-  organizationId: string;
+  role: string; // global: "user"
+  org_roles?: Record<string, RoleType>; // orgId -> role
   iat?: number;
   exp?: number;
 }
 
-// Auth Response DTO
+// Auth response: token + user; org_roles included when user has memberships (e.g. after refresh or register with createOrgName).
 export class AuthResponseDto {
   access_token: string;
   user: UserProfile;
 }
 
-// User Profile (sanitized user info)
 export class UserProfile {
   id: string;
   email: string;
   firstName: string;
   lastName: string;
-  role: RoleType;
-  organizationId: string;
+  role: string; // global "user"
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
+  /** Org-scoped roles when available (e.g. after refresh or register with org creation). */
+  org_roles?: Record<string, RoleType>;
 }
 
-// Password Change DTO
+// Password change DTO
 export class ChangePasswordDto {
   @IsString()
   @MinLength(6)

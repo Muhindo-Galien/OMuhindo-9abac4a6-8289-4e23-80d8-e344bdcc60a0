@@ -16,19 +16,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtStrategyPayload): Promise<any> {
-    const { sub, email, role, roleLevel, organizationId } = payload;
-
-    // For a simple strategy, we trust the JWT payload since it's already been verified
-    // In production, you might want to add additional database validation
-
-    // Return user object that will be attached to request.user
+    const { sub, email, role, org_roles } = payload;
     return {
       id: sub,
-      email: email,
-      role: role,
-      roleLevel: roleLevel,
-      organizationId: organizationId,
-      permissions: [], // Will be populated by the role permissions in a real implementation
+      email,
+      role,
+      org_roles: org_roles ?? {},
+      permissions: [],
     };
   }
 }

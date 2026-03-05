@@ -18,3 +18,7 @@ export const MinimumRoleLevel = (level: number) =>
  * Decorator to mark routes as public (no authentication required)
  */
 export const Public = () => SetMetadata('isPublic', true);
+
+/** Org-scoped: require one of these roles in the org (param orgId or body organizationId). */
+export const OrgRoles = (...roles: RoleType[]) =>
+  SetMetadata('org_roles', roles);

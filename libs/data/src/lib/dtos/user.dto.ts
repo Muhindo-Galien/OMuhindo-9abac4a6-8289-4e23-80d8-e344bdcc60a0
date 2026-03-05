@@ -9,43 +9,8 @@ import {
 } from 'class-validator';
 import { RoleType } from '../models/role.model';
 
-// Create User DTO (for admin creating new users)
-export class CreateUserDto {
-  @IsEmail()
-  email: string;
-
-  @IsString()
-  @MinLength(6)
-  password: string;
-
-  @IsString()
-  @MinLength(2)
-  @MaxLength(100)
-  firstName: string;
-
-  @IsString()
-  @MinLength(2)
-  @MaxLength(100)
-  lastName: string;
-
-  @IsUUID()
-  organizationId: string;
-
-  @IsOptional()
-  @IsUUID()
-  roleId?: string; // Optional, defaults to VIEWER if not provided
-
-  @IsOptional()
-  @IsBoolean()
-  isActive?: boolean = true;
-}
-
-// Update User DTO
+// Update User DTO (profile updates)
 export class UpdateUserDto {
-  @IsOptional()
-  @IsEmail()
-  email?: string;
-
   @IsOptional()
   @IsString()
   @MinLength(2)
@@ -59,19 +24,11 @@ export class UpdateUserDto {
   lastName?: string;
 
   @IsOptional()
-  @IsUUID()
-  organizationId?: string;
-
-  @IsOptional()
-  @IsUUID()
-  roleId?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  isActive?: boolean;
+  @IsEmail()
+  email?: string;
 }
 
-// User Response DTO (what gets returned to frontend)
+// User Response DTO (e.g. in org member list: user + role in that org)
 export class UserResponseDto {
   id: string;
   email: string;
@@ -79,15 +36,9 @@ export class UserResponseDto {
   lastName: string;
   fullName: string;
   isActive: boolean;
-  role: {
-    id: string;
-    name: RoleType;
-    level: number;
-  };
-  organization: {
-    id: string;
-    name: string;
-  };
+  globalRole: string;
+  /** When used in org context: role in this org */
+  orgRole?: RoleType;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -111,19 +62,15 @@ export class UpdateProfileDto {
   email?: string;
 }
 
-// User List Query DTO (for filtering/sorting users)
+// User List Query DTO (e.g. filter members by org)
 export class UserQueryDto {
   @IsOptional()
   @IsString()
-  search?: string; // Search in name/email
+  search?: string;
 
   @IsOptional()
   @IsUUID()
   organizationId?: string;
-
-  @IsOptional()
-  @IsUUID()
-  roleId?: string;
 
   @IsOptional()
   @IsBoolean()
@@ -131,8 +78,7 @@ export class UserQueryDto {
 
   @IsOptional()
   @IsString()
-  sortBy?: 'createdAt' | 'updatedAt' | 'firstName' | 'lastName' | 'email' =
-    'createdAt';
+  sortBy?: 'createdAt' | 'updatedAt' | 'firstName' | 'lastName' | 'email' = 'createdAt';
 
   @IsOptional()
   @IsString()

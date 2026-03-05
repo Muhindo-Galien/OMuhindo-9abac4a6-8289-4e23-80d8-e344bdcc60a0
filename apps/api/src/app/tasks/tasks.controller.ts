@@ -1,27 +1,27 @@
-import { 
-  Controller, 
-  Get, 
-  Post, 
-  Put, 
-  Delete, 
-  Body, 
-  Param, 
-  Query, 
-  UseGuards, 
-  HttpCode, 
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  HttpCode,
   HttpStatus,
   UseInterceptors,
-  ClassSerializerInterceptor 
+  ClassSerializerInterceptor,
 } from '@nestjs/common';
 
 // Import from libs
-import { 
-  CreateTaskDto, 
-  UpdateTaskDto, 
-  TaskResponseDto, 
+import {
+  CreateTaskDto,
+  UpdateTaskDto,
+  TaskResponseDto,
   TaskQueryDto,
   BulkUpdateTaskDto,
-  RoleType 
+  RoleType,
 } from '@data';
 import { JwtAuthGuard, CurrentUser, Roles, RolesGuard } from '@auth';
 
@@ -29,14 +29,14 @@ import { JwtAuthGuard, CurrentUser, Roles, RolesGuard } from '@auth';
 import { TasksService } from './tasks.service';
 
 @Controller('tasks')
-@UseGuards(JwtAuthGuard, RolesGuard) // Protect all endpoints with JWT authentication and RBAC
+@UseGuards(JwtAuthGuard, RolesGuard)
 @UseInterceptors(ClassSerializerInterceptor)
 export class TasksController {
   constructor(private tasksService: TasksService) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Roles(RoleType.VIEWER) // All authenticated users can create tasks
+  @Roles(RoleType.VIEWER)
   async createTask(
     @Body() createTaskDto: CreateTaskDto,
     @CurrentUser() currentUser: any
@@ -72,7 +72,11 @@ export class TasksController {
     @Body() updateTaskDto: UpdateTaskDto,
     @CurrentUser() currentUser: any
   ): Promise<TaskResponseDto> {
-    return await this.tasksService.updateTask(taskId, updateTaskDto, currentUser);
+    return await this.tasksService.updateTask(
+      taskId,
+      updateTaskDto,
+      currentUser
+    );
   }
 
   @Delete(':id')
@@ -92,6 +96,9 @@ export class TasksController {
     @Body() bulkUpdateDto: { tasks: BulkUpdateTaskDto[] },
     @CurrentUser() currentUser: any
   ): Promise<TaskResponseDto[]> {
-    return await this.tasksService.bulkUpdateTasks(bulkUpdateDto.tasks, currentUser);
+    return await this.tasksService.bulkUpdateTasks(
+      bulkUpdateDto.tasks,
+      currentUser
+    );
   }
-} 
+}

@@ -10,19 +10,23 @@ export interface User extends UserProfile {
 }
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class AuthService {
   private http = inject(HttpClient);
-  
+
   private readonly API_URL = environment.apiUrl;
   private readonly TOKEN_KEY = 'taskmanager_token';
   private readonly USER_KEY = 'taskmanager_user';
 
-  private currentUserSubject = new BehaviorSubject<User | null>(this.getUserFromStorage());
+  private currentUserSubject = new BehaviorSubject<User | null>(
+    this.getUserFromStorage()
+  );
   public currentUser$ = this.currentUserSubject.asObservable();
 
-  private isAuthenticatedSubject = new BehaviorSubject<boolean>(this.hasValidToken());
+  private isAuthenticatedSubject = new BehaviorSubject<boolean>(
+    this.hasValidToken()
+  );
   public isAuthenticated$ = this.isAuthenticatedSubject.asObservable();
 
   constructor() {
@@ -33,13 +37,15 @@ export class AuthService {
   login(email: string, password: string): Observable<AuthResponseDto> {
     const loginData: LoginDto = { email, password };
 
-    return this.http.post<AuthResponseDto>(`${this.API_URL}/auth/login`, loginData).pipe(
-      tap(response => {
-        console.log('Login successful, storing token and user data');
-        this.setSession(response);
-      }),
-      catchError(this.handleError)
-    );
+    return this.http
+      .post<AuthResponseDto>(`${this.API_URL}/auth/login`, loginData)
+      .pipe(
+        tap(response => {
+          console.log('Login successful, storing token and user data');
+          this.setSession(response);
+        }),
+        catchError(this.handleError)
+      );
   }
 
   logout(): void {
@@ -63,10 +69,10 @@ export class AuthService {
     try {
       localStorage.setItem(this.TOKEN_KEY, authResult.access_token);
       localStorage.setItem(this.USER_KEY, JSON.stringify(authResult.user));
-      
+
       this.currentUserSubject.next(authResult.user);
       this.isAuthenticatedSubject.next(true);
-      
+
       console.log('Session established for user:', authResult.user.email);
     } catch (error) {
       console.error('Error setting session:', error);
@@ -77,7 +83,7 @@ export class AuthService {
   private clearSession(): void {
     localStorage.removeItem(this.TOKEN_KEY);
     localStorage.removeItem(this.USER_KEY);
-    
+
     this.currentUserSubject.next(null);
     this.isAuthenticatedSubject.next(false);
   }
@@ -95,7 +101,7 @@ export class AuthService {
   private hasValidToken(): boolean {
     const token = this.getToken();
     const user = this.getUserFromStorage();
-    
+
     if (!token || !user) {
       return false;
     }
@@ -104,13 +110,13 @@ export class AuthService {
     try {
       const payload = this.parseJwt(token);
       const currentTime = Math.floor(Date.now() / 1000);
-      
+
       if (payload.exp && payload.exp < currentTime) {
         console.log('Token expired');
         this.clearSession();
         return false;
       }
-      
+
       return true;
     } catch (error) {
       console.error('Error validating token:', error);
@@ -144,9 +150,9 @@ export class AuthService {
 
   private handleError = (error: HttpErrorResponse): Observable<never> => {
     console.error('Auth service error:', error);
-    
+
     let errorMessage = 'An error occurred';
-    
+
     if (error.error instanceof ErrorEvent) {
       // Client-side error
       errorMessage = error.error.message;
@@ -166,10 +172,11 @@ export class AuthService {
           errorMessage = 'Internal server error';
           break;
         default:
-          errorMessage = error.error?.message || `Server error (${error.status})`;
+          errorMessage =
+            error.error?.message || `Server error (${error.status})`;
       }
     }
-    
+
     return throwError(() => ({ error: { message: errorMessage } }));
   };
 
@@ -196,4 +203,4 @@ export class AuthService {
   canAccessAuditLog(): boolean {
     return this.isOwner() || this.isAdmin();
   }
-} 
+}

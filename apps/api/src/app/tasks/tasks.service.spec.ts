@@ -4,12 +4,12 @@ import { Repository } from 'typeorm';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 
 // Import entities and DTOs
-import { 
-  Task, 
-  Organization, 
-  User, 
-  CreateTaskDto, 
-  UpdateTaskDto, 
+import {
+  Task,
+  Organization,
+  User,
+  CreateTaskDto,
+  UpdateTaskDto,
   TaskQueryDto,
   TaskStatus,
   TaskPriority,
@@ -17,20 +17,21 @@ import {
   RoleType,
   BulkUpdateTaskDto,
   AuditAction,
-  AuditResource 
+  AuditResource,
 } from '@data';
 
 // Import the service under test
 import { TasksService } from './tasks.service';
 import { AuditService } from '../audit/audit.service';
+import { EffectiveRoleService } from '../organizations/organizations.service';
 
 // Import fixtures
-import { 
-  mockUsers, 
-  mockTasks, 
+import {
+  mockUsers,
+  mockTasks,
   mockTaskDtos,
-  cloneFixture, 
-  createCustomFixture 
+  cloneFixture,
+  createCustomFixture,
 } from '@data';
 
 describe('TasksService', () => {
@@ -39,6 +40,7 @@ describe('TasksService', () => {
   let organizationRepository: jest.Mocked<Repository<Organization>>;
   let userRepository: jest.Mocked<Repository<User>>;
   let auditService: jest.Mocked<AuditService>;
+  let effectiveRoleService: jest.Mocked<EffectiveRoleService>;
 
   // Test users based on fixtures with extended properties
   const ownerUser = {
@@ -132,6 +134,15 @@ describe('TasksService', () => {
 
   beforeEach(async () => {
     // Create mocked repositories
+    const mockQueryBuilder = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([]),
+    };
     const mockTaskRepo = {
       create: jest.fn(),
       save: jest.fn(),
@@ -139,11 +150,15 @@ describe('TasksService', () => {
       find: jest.fn(),
       remove: jest.fn(),
       update: jest.fn(),
-      createQueryBuilder: jest.fn(),
+      createQueryBuilder: jest.fn(() => mockQueryBuilder),
     };
 
     const mockOrgRepo = {
-      find: jest.fn(),
+      find: jest.fn().mockResolvedValue([
+        { id: 'org-123', name: 'Main', parentId: null },
+        { id: 'org-sub-456', name: 'Sub', parentId: 'org-123' },
+        { id: 'org-different-123', name: 'Different', parentId: null },
+      ]),
       findOne: jest.fn(),
     };
 
@@ -151,30 +166,27 @@ describe('TasksService', () => {
       findOne: jest.fn(),
     };
 
-    // Create mocked audit service
-    const mockAuditService = {
-      logAction: jest.fn(),
+    const mockAuditService = { logAction: jest.fn() };
+    const mockEffectiveRoleService = {
+      getEffectiveRole: jest.fn((userId: string) =>
+        Promise.resolve(
+          userId === viewerUser.id ? RoleType.VIEWER : RoleType.OWNER
+        )
+      ),
+      hasMinimumRole: jest.fn(
+        (userId: string, _orgId: string, _role: RoleType) =>
+          Promise.resolve(userId !== viewerUser.id)
+      ),
     };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TasksService,
-        {
-          provide: getRepositoryToken(Task),
-          useValue: mockTaskRepo,
-        },
-        {
-          provide: getRepositoryToken(Organization),
-          useValue: mockOrgRepo,
-        },
-        {
-          provide: getRepositoryToken(User),
-          useValue: mockUserRepo,
-        },
-        {
-          provide: AuditService,
-          useValue: mockAuditService,
-        },
+        { provide: getRepositoryToken(Task), useValue: mockTaskRepo },
+        { provide: getRepositoryToken(Organization), useValue: mockOrgRepo },
+        { provide: getRepositoryToken(User), useValue: mockUserRepo },
+        { provide: AuditService, useValue: mockAuditService },
+        { provide: EffectiveRoleService, useValue: mockEffectiveRoleService },
       ],
     }).compile();
 
@@ -183,6 +195,7 @@ describe('TasksService', () => {
     organizationRepository = module.get(getRepositoryToken(Organization));
     userRepository = module.get(getRepositoryToken(User));
     auditService = module.get(AuditService);
+    effectiveRoleService = module.get(EffectiveRoleService);
 
     // Reset all mocks before each test
     jest.clearAllMocks();
@@ -202,6 +215,7 @@ describe('TasksService', () => {
       priority: TaskPriority.HIGH,
       category: TaskCategory.WORK,
       dueDate: '2024-12-31',
+      organizationId: 'org-123',
     };
 
     describe('permission checks', () => {
@@ -257,11 +271,9 @@ describe('TasksService', () => {
       });
 
       it('should deny Viewer from creating tasks', async () => {
-        // Act & Assert
-        await expect(service.createTask(createTaskDto, viewerUser)).rejects.toThrow(
-          new ForbiddenException('Only owners and admins can create tasks')
-        );
-
+        await expect(
+          service.createTask(createTaskDto, viewerUser)
+        ).rejects.toThrow(ForbiddenException);
         expect(taskRepository.create).not.toHaveBeenCalled();
         expect(taskRepository.save).not.toHaveBeenCalled();
       });
@@ -288,14 +300,16 @@ describe('TasksService', () => {
         // Assert
         expect(userRepository.findOne).toHaveBeenCalledWith({
           where: { id: adminUser.id },
-          relations: ['organization'],
         });
         expect(result.ownerId).toBe(adminUser.id);
       });
 
       it('should allow Admin to assign task to user in same organization', async () => {
         // Arrange
-        const createTaskWithOwner = { ...createTaskDto, ownerId: viewerUser.id };
+        const createTaskWithOwner = {
+          ...createTaskDto,
+          ownerId: viewerUser.id,
+        };
         const expectedTask = createCustomFixture(adminTask, {
           ownerId: viewerUser.id,
           owner: viewerUser,
@@ -319,26 +333,44 @@ describe('TasksService', () => {
 
       it('should deny Admin from assigning task to user in different organization', async () => {
         // Arrange
-        const createTaskWithOwner = { ...createTaskDto, ownerId: differentOrgViewer.id };
+        const createTaskWithOwner = {
+          ...createTaskDto,
+          ownerId: differentOrgViewer.id,
+        };
 
         userRepository.findOne.mockResolvedValue(differentOrgViewer as any);
+        effectiveRoleService.getEffectiveRole.mockImplementation(
+          (userId: string, orgId: string) =>
+            Promise.resolve(
+              userId === differentOrgViewer.id && orgId === 'org-123'
+                ? null
+                : RoleType.OWNER
+            )
+        );
 
         // Act & Assert
-        await expect(service.createTask(createTaskWithOwner, adminUser)).rejects.toThrow(
-          new ForbiddenException('Cannot assign task to user outside your organization')
+        await expect(
+          service.createTask(createTaskWithOwner, adminUser)
+        ).rejects.toThrow(
+          new ForbiddenException(
+            'Assigned user must be a member of this organization'
+          )
         );
       });
 
       it('should deny assignment to non-existent user', async () => {
         // Arrange
-        const createTaskWithOwner = { ...createTaskDto, ownerId: 'non-existent-user' };
+        const createTaskWithOwner = {
+          ...createTaskDto,
+          ownerId: 'non-existent-user',
+        };
 
         userRepository.findOne.mockResolvedValue(null);
 
         // Act & Assert
-        await expect(service.createTask(createTaskWithOwner, ownerUser)).rejects.toThrow(
-          new NotFoundException('User not found')
-        );
+        await expect(
+          service.createTask(createTaskWithOwner, ownerUser)
+        ).rejects.toThrow(new NotFoundException('User not found'));
       });
     });
 
@@ -362,20 +394,19 @@ describe('TasksService', () => {
           ownerUser.id,
           AuditAction.CREATE,
           AuditResource.TASK,
-          {
+          expect.objectContaining({
             resourceId: expectedTask.id,
-            details: {
+            details: expect.objectContaining({
               title: expectedTask.title,
               status: expectedTask.status,
-              priority: expectedTask.priority,
-              ownerId: expectedTask.ownerId,
-            },
+              organizationId: 'org-123',
+            }),
             success: true,
-          }
+          })
         );
       });
 
-      it('should continue execution even if audit logging fails', async () => {
+      it('should propagate error when audit logging fails', async () => {
         // Arrange
         const expectedTask = createCustomFixture(ownerTask, {
           title: createTaskDto.title,
@@ -384,14 +415,14 @@ describe('TasksService', () => {
         taskRepository.create.mockReturnValue(expectedTask as any);
         taskRepository.save.mockResolvedValue(expectedTask as any);
         taskRepository.findOne.mockResolvedValue(expectedTask as any);
-        auditService.logAction.mockRejectedValue(new Error('Audit service failure'));
+        auditService.logAction.mockRejectedValue(
+          new Error('Audit service failure')
+        );
 
-        // Act
-        const result = await service.createTask(createTaskDto, ownerUser);
-
-        // Assert
-        expect(result).toBeDefined();
-        expect(result.title).toBe(createTaskDto.title);
+        // Act & Assert
+        await expect(
+          service.createTask(createTaskDto, ownerUser)
+        ).rejects.toThrow('Audit service failure');
       });
     });
   });
@@ -404,9 +435,10 @@ describe('TasksService', () => {
       sortOrder: 'DESC',
     };
 
-    // Mock query builder
+    // Mock query builder (getAccessibleOrgIds uses organizationRepository.find() then getEffectiveRole per org)
     const mockQueryBuilder = {
       leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       orderBy: jest.fn().mockReturnThis(),
       skip: jest.fn().mockReturnThis(),
@@ -415,84 +447,246 @@ describe('TasksService', () => {
     };
 
     beforeEach(() => {
-      taskRepository.createQueryBuilder.mockReturnValue(mockQueryBuilder as any);
+      taskRepository.createQueryBuilder.mockReturnValue(
+        mockQueryBuilder as any
+      );
     });
 
     describe('role-based access control', () => {
       it('should allow Owner to see all tasks in organization and sub-organizations', async () => {
-        // Arrange
+        // Arrange: getAccessibleOrgIds uses orgRepo.find() then getEffectiveRole(userId, org.id) per org
         const tasks = [ownerTask, adminTask, viewerTask];
-        organizationRepository.find.mockResolvedValue([subOrganization] as any);
+        organizationRepository.find.mockResolvedValue([
+          mainOrganization,
+          subOrganization,
+        ] as any);
         mockQueryBuilder.getMany.mockResolvedValue(tasks);
 
         // Act
         const result = await service.findAllTasks(queryDto, ownerUser);
 
         // Assert
-        expect(organizationRepository.find).toHaveBeenCalledWith({
-          where: { parentId: ownerUser.organizationId },
-        });
-        expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        expect(organizationRepository.find).toHaveBeenCalledWith();
+        expect(mockQueryBuilder.where).toHaveBeenCalledWith(
           'task.organizationId IN (:...orgIds)',
-          { orgIds: [ownerUser.organizationId, subOrganization.id] }
+          expect.objectContaining({ orgIds: expect.any(Array) })
         );
         expect(result).toHaveLength(3);
       });
 
       it('should allow Admin to see all tasks in their organization only', async () => {
-        // Arrange
+        // Arrange: getEffectiveRole returns role only for admin's org
         const tasks = [adminTask, viewerTask];
+        organizationRepository.find.mockResolvedValue([
+          mainOrganization,
+          subOrganization,
+          differentOrganization,
+        ] as any);
+        effectiveRoleService.getEffectiveRole.mockImplementation(
+          (userId: string, orgId: string) =>
+            Promise.resolve(
+              orgId === adminUser.organizationId ? RoleType.ADMIN : null
+            )
+        );
         mockQueryBuilder.getMany.mockResolvedValue(tasks);
 
         // Act
         const result = await service.findAllTasks(queryDto, adminUser);
 
         // Assert
-        expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
-          'task.organizationId = :orgId',
-          { orgId: adminUser.organizationId }
+        expect(mockQueryBuilder.where).toHaveBeenCalledWith(
+          'task.organizationId IN (:...orgIds)',
+          { orgIds: [adminUser.organizationId] }
         );
         expect(result).toHaveLength(2);
       });
 
-      it('should allow Viewer to see only their own tasks', async () => {
+      it('should allow Viewer to see tasks in orgs they belong to', async () => {
         // Arrange
         const tasks = [viewerTask];
+        organizationRepository.find.mockResolvedValue([
+          mainOrganization,
+        ] as any);
         mockQueryBuilder.getMany.mockResolvedValue(tasks);
 
         // Act
         const result = await service.findAllTasks(queryDto, viewerUser);
 
         // Assert
-        expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
-          'task.ownerId = :userId',
-          { userId: viewerUser.id }
+        expect(mockQueryBuilder.where).toHaveBeenCalledWith(
+          'task.organizationId IN (:...orgIds)',
+          expect.objectContaining({ orgIds: expect.any(Array) })
         );
         expect(result).toHaveLength(1);
         expect(result[0].ownerId).toBe(viewerUser.id);
       });
     });
 
+    describe('parent/child org and task visibility', () => {
+      const baseCreateDto: CreateTaskDto = {
+        title: 'New Task',
+        description: 'Desc',
+        priority: TaskPriority.HIGH,
+        category: TaskCategory.WORK,
+        dueDate: '2024-12-31',
+        organizationId: 'org-123',
+      };
+
+      it('should allow creating task in parent org as owner', async () => {
+        const parentOrgId = 'org-123';
+        const dto: CreateTaskDto = {
+          ...baseCreateDto,
+          organizationId: parentOrgId,
+        };
+        const saved = { ...ownerTask, organizationId: parentOrgId };
+        taskRepository.create.mockReturnValue(saved as any);
+        taskRepository.save.mockResolvedValue(saved as any);
+        taskRepository.findOne.mockResolvedValue(saved as any);
+        effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.OWNER);
+
+        const result = await service.createTask(dto, ownerUser);
+        expect(result.organizationId).toBe(parentOrgId);
+        expect(effectiveRoleService.getEffectiveRole).toHaveBeenCalledWith(
+          ownerUser.id,
+          parentOrgId
+        );
+      });
+
+      it('should allow creating task in child org when user has inherited owner from parent', async () => {
+        const childOrgId = 'org-sub-456';
+        const dto: CreateTaskDto = {
+          ...baseCreateDto,
+          organizationId: childOrgId,
+        };
+        const saved = {
+          ...ownerTask,
+          id: 'task-child-1',
+          organizationId: childOrgId,
+        };
+        taskRepository.create.mockReturnValue(saved as any);
+        taskRepository.save.mockResolvedValue(saved as any);
+        taskRepository.findOne.mockResolvedValue(saved as any);
+        effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.OWNER);
+
+        const result = await service.createTask(dto, ownerUser);
+        expect(result.organizationId).toBe(childOrgId);
+      });
+
+      it('should list tasks in both parent and child orgs when user has owner on parent (inherited on child)', async () => {
+        organizationRepository.find.mockResolvedValue([
+          mainOrganization,
+          subOrganization,
+        ] as any);
+        effectiveRoleService.getEffectiveRole.mockImplementation(
+          (_userId: string, orgId: string) =>
+            Promise.resolve(
+              orgId === mainOrganization.id || orgId === subOrganization.id
+                ? RoleType.OWNER
+                : null
+            )
+        );
+        const tasks = [
+          ownerTask,
+          { ...adminTask, organizationId: subOrganization.id },
+        ];
+        mockQueryBuilder.getMany.mockResolvedValue(tasks);
+
+        const result = await service.findAllTasks(queryDto, ownerUser);
+        expect(result.length).toBeGreaterThanOrEqual(1);
+        expect(mockQueryBuilder.where).toHaveBeenCalledWith(
+          'task.organizationId IN (:...orgIds)',
+          expect.objectContaining({
+            orgIds: expect.arrayContaining([
+              mainOrganization.id,
+              subOrganization.id,
+            ]),
+          })
+        );
+      });
+
+      it('should not list child org tasks when user has no role in parent (revoke parent scenario)', async () => {
+        organizationRepository.find.mockResolvedValue([
+          mainOrganization,
+          subOrganization,
+        ] as any);
+        effectiveRoleService.getEffectiveRole.mockResolvedValue(null);
+
+        const result = await service.findAllTasks(queryDto, {
+          ...ownerUser,
+          id: 'revoked-user',
+        });
+        expect(result).toEqual([]);
+        expect(mockQueryBuilder.where).not.toHaveBeenCalled();
+      });
+
+      it('should list only child org tasks when user has direct child membership but no parent (revoke parent, keep direct child)', async () => {
+        organizationRepository.find.mockResolvedValue([
+          mainOrganization,
+          subOrganization,
+        ] as any);
+        effectiveRoleService.getEffectiveRole.mockImplementation(
+          (_userId: string, orgId: string) =>
+            Promise.resolve(
+              orgId === subOrganization.id ? RoleType.VIEWER : null
+            )
+        );
+        const childTasks = [
+          { ...viewerTask, organizationId: subOrganization.id },
+        ];
+        mockQueryBuilder.getMany.mockResolvedValue(childTasks);
+
+        const result = await service.findAllTasks(queryDto, {
+          ...viewerUser,
+          id: 'user-direct-child-only',
+        });
+        expect(mockQueryBuilder.where).toHaveBeenCalledWith(
+          'task.organizationId IN (:...orgIds)',
+          expect.objectContaining({ orgIds: [subOrganization.id] })
+        );
+        expect(result).toHaveLength(1);
+      });
+    });
+
     describe('data isolation between organizations', () => {
       it('should not return tasks from different organizations for Admin', async () => {
         // Arrange
-        const tasks = [adminTask]; // Only tasks from same org
+        const tasks = [adminTask];
+        organizationRepository.find.mockResolvedValue([
+          mainOrganization,
+          differentOrganization,
+        ] as any);
+        effectiveRoleService.getEffectiveRole.mockImplementation(
+          (_userId: string, orgId: string) =>
+            Promise.resolve(
+              orgId === adminUser.organizationId ? RoleType.ADMIN : null
+            )
+        );
         mockQueryBuilder.getMany.mockResolvedValue(tasks);
 
         // Act
         const result = await service.findAllTasks(queryDto, adminUser);
 
         // Assert
-        expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
-          'task.organizationId = :orgId',
-          { orgId: adminUser.organizationId }
-        );
-        expect(result.every(task => task.organizationId === adminUser.organizationId)).toBe(true);
+        expect(
+          result.every(task => task.organizationId === adminUser.organizationId)
+        ).toBe(true);
       });
 
       it('should not return tasks from different organizations for Viewer', async () => {
         // Arrange
-        const tasks = [viewerTask]; // Only viewer's own tasks
+        const tasks = [viewerTask];
+        organizationRepository.find.mockResolvedValue([
+          mainOrganization,
+          differentOrganization,
+        ] as any);
+        effectiveRoleService.getEffectiveRole.mockImplementation(
+          (userId: string, orgId: string) =>
+            Promise.resolve(
+              userId === viewerUser.id && orgId === viewerUser.organizationId
+                ? RoleType.VIEWER
+                : null
+            )
+        );
         mockQueryBuilder.getMany.mockResolvedValue(tasks);
 
         // Act
@@ -507,7 +701,9 @@ describe('TasksService', () => {
       it('should apply status filter', async () => {
         // Arrange
         const queryWithStatus = { ...queryDto, status: TaskStatus.TODO };
-        organizationRepository.find.mockResolvedValue([]); // No sub-orgs
+        organizationRepository.find.mockResolvedValue([
+          mainOrganization,
+        ] as any);
         mockQueryBuilder.getMany.mockResolvedValue([ownerTask]);
 
         // Act
@@ -523,7 +719,9 @@ describe('TasksService', () => {
       it('should apply priority filter', async () => {
         // Arrange
         const queryWithPriority = { ...queryDto, priority: TaskPriority.HIGH };
-        organizationRepository.find.mockResolvedValue([]); // No sub-orgs
+        organizationRepository.find.mockResolvedValue([
+          mainOrganization,
+        ] as any);
         mockQueryBuilder.getMany.mockResolvedValue([ownerTask]);
 
         // Act
@@ -539,7 +737,9 @@ describe('TasksService', () => {
       it('should apply search filter', async () => {
         // Arrange
         const queryWithSearch = { ...queryDto, search: 'test search' };
-        organizationRepository.find.mockResolvedValue([]); // No sub-orgs
+        organizationRepository.find.mockResolvedValue([
+          mainOrganization,
+        ] as any);
         mockQueryBuilder.getMany.mockResolvedValue([ownerTask]);
 
         // Act
@@ -555,7 +755,9 @@ describe('TasksService', () => {
       it('should apply pagination', async () => {
         // Arrange
         const queryWithPagination = { ...queryDto, page: 2, limit: 5 };
-        organizationRepository.find.mockResolvedValue([]); // No sub-orgs
+        organizationRepository.find.mockResolvedValue([
+          mainOrganization,
+        ] as any);
         mockQueryBuilder.getMany.mockResolvedValue([ownerTask]);
 
         // Act
@@ -611,24 +813,58 @@ describe('TasksService', () => {
         expect(result.id).toBe(viewerTask.id);
       });
 
-      it('should deny Viewer access to other users tasks', async () => {
-        // Arrange
+      it('should allow Viewer to access tasks in same organization', async () => {
+        // Arrange: viewer has VIEWER role in org-123, so can access any task in that org
         taskRepository.findOne.mockResolvedValue(adminTask as any);
 
-        // Act & Assert
-        await expect(service.findTaskById(adminTask.id, viewerUser)).rejects.toThrow(
-          new ForbiddenException('Access denied to this task')
-        );
+        // Act
+        const result = await service.findTaskById(adminTask.id, viewerUser);
+
+        // Assert
+        expect(result).toBeDefined();
+        expect(result.id).toBe(adminTask.id);
       });
 
       it('should deny Admin access to tasks in different organizations', async () => {
-        // Arrange
+        // Arrange: admin has no role in org-different-123
         taskRepository.findOne.mockResolvedValue(differentOrgTask as any);
+        effectiveRoleService.getEffectiveRole.mockImplementation(
+          (_userId: string, orgId: string) =>
+            Promise.resolve(
+              orgId === 'org-different-123' ? null : RoleType.ADMIN
+            )
+        );
 
         // Act & Assert
-        await expect(service.findTaskById(differentOrgTask.id, adminUser)).rejects.toThrow(
-          new ForbiddenException('Access denied to this task')
-        );
+        await expect(
+          service.findTaskById(differentOrgTask.id, adminUser)
+        ).rejects.toThrow(new ForbiddenException('Access denied to this task'));
+      });
+
+      it('should allow Owner to access task in child org via inherited role', async () => {
+        const childOrgTask = {
+          ...adminTask,
+          organizationId: subOrganization.id,
+        };
+        taskRepository.findOne.mockResolvedValue(childOrgTask as any);
+        effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.OWNER);
+
+        const result = await service.findTaskById(childOrgTask.id, ownerUser);
+        expect(result.id).toBe(childOrgTask.id);
+        expect(result.organizationId).toBe(subOrganization.id);
+      });
+
+      it('should deny access to task in child org when user lost parent membership (revoke parent)', async () => {
+        const childOrgTask = {
+          ...adminTask,
+          organizationId: subOrganization.id,
+        };
+        taskRepository.findOne.mockResolvedValue(childOrgTask as any);
+        effectiveRoleService.getEffectiveRole.mockResolvedValue(null);
+
+        await expect(
+          service.findTaskById(childOrgTask.id, ownerUser)
+        ).rejects.toThrow(ForbiddenException);
       });
     });
 
@@ -637,9 +873,9 @@ describe('TasksService', () => {
       taskRepository.findOne.mockResolvedValue(null);
 
       // Act & Assert
-      await expect(service.findTaskById('non-existent-task', ownerUser)).rejects.toThrow(
-        new NotFoundException('Task not found')
-      );
+      await expect(
+        service.findTaskById('non-existent-task', ownerUser)
+      ).rejects.toThrow(new NotFoundException('Task not found'));
     });
   });
 
@@ -662,10 +898,17 @@ describe('TasksService', () => {
         auditService.logAction.mockResolvedValue({} as any);
 
         // Act
-        const result = await service.updateTask(adminTask.id, updateTaskDto, ownerUser);
+        const result = await service.updateTask(
+          adminTask.id,
+          updateTaskDto,
+          ownerUser
+        );
 
         // Assert
-        expect(taskRepository.update).toHaveBeenCalledWith(adminTask.id, updateTaskDto);
+        expect(taskRepository.update).toHaveBeenCalledWith(
+          adminTask.id,
+          updateTaskDto
+        );
         expect(result.title).toBe(updateTaskDto.title);
       });
 
@@ -683,10 +926,17 @@ describe('TasksService', () => {
         auditService.logAction.mockResolvedValue({} as any);
 
         // Act
-        const result = await service.updateTask(sameOrgTask.id, updateTaskDto, adminUser);
+        const result = await service.updateTask(
+          sameOrgTask.id,
+          updateTaskDto,
+          adminUser
+        );
 
         // Assert
-        expect(taskRepository.update).toHaveBeenCalledWith(sameOrgTask.id, updateTaskDto);
+        expect(taskRepository.update).toHaveBeenCalledWith(
+          sameOrgTask.id,
+          updateTaskDto
+        );
         expect(result.title).toBe(updateTaskDto.title);
       });
 
@@ -700,7 +950,11 @@ describe('TasksService', () => {
         auditService.logAction.mockResolvedValue({} as any);
 
         // Act
-        const result = await service.updateTask(viewerTask.id, updateTaskDto, viewerUser);
+        const result = await service.updateTask(
+          viewerTask.id,
+          updateTaskDto,
+          viewerUser
+        );
 
         // Assert
         expect(result.title).toBe(updateTaskDto.title);
@@ -711,20 +965,64 @@ describe('TasksService', () => {
         taskRepository.findOne.mockResolvedValue(adminTask as any);
 
         // Act & Assert
-        await expect(service.updateTask(adminTask.id, updateTaskDto, viewerUser)).rejects.toThrow(
-          new ForbiddenException('You do not have permission to update this task')
+        await expect(
+          service.updateTask(adminTask.id, updateTaskDto, viewerUser)
+        ).rejects.toThrow(
+          new ForbiddenException(
+            'You do not have permission to update this task'
+          )
         );
+      });
+
+      it('should allow Owner to update task in child org via inherited role', async () => {
+        const childOrgTask = {
+          ...adminTask,
+          organizationId: subOrganization.id,
+        };
+        const updatedTask = { ...childOrgTask, ...updateTaskDto };
+        taskRepository.findOne
+          .mockResolvedValueOnce(childOrgTask as any)
+          .mockResolvedValueOnce(updatedTask as any);
+        taskRepository.update.mockResolvedValue({} as any);
+        effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.OWNER);
+
+        const result = await service.updateTask(
+          childOrgTask.id,
+          updateTaskDto,
+          ownerUser
+        );
+        expect(result.title).toBe(updateTaskDto.title);
+      });
+
+      it('should deny update on child org task when user lost parent membership', async () => {
+        const childOrgTask = {
+          ...adminTask,
+          organizationId: subOrganization.id,
+        };
+        taskRepository.findOne.mockResolvedValue(childOrgTask as any);
+        effectiveRoleService.getEffectiveRole.mockResolvedValue(null);
+
+        await expect(
+          service.updateTask(childOrgTask.id, updateTaskDto, ownerUser)
+        ).rejects.toThrow(ForbiddenException);
       });
     });
 
     describe('completion handling', () => {
-
       it('should clear completedAt when task is marked as not done', async () => {
         // Arrange
         const incompleteTaskDto = { ...updateTaskDto, status: TaskStatus.TODO };
-        const completedTask = { ...viewerTask, status: TaskStatus.DONE, completedAt: new Date().toISOString() };
-        const updatedTask = { ...completedTask, ...incompleteTaskDto, completedAt: null };
-        
+        const completedTask = {
+          ...viewerTask,
+          status: TaskStatus.DONE,
+          completedAt: new Date().toISOString(),
+        };
+        const updatedTask = {
+          ...completedTask,
+          ...incompleteTaskDto,
+          completedAt: null,
+        };
+
         taskRepository.findOne
           .mockResolvedValueOnce(completedTask as any)
           .mockResolvedValueOnce(updatedTask as any);
@@ -732,7 +1030,11 @@ describe('TasksService', () => {
         auditService.logAction.mockResolvedValue({} as any);
 
         // Act
-        await service.updateTask(completedTask.id, incompleteTaskDto, viewerUser);
+        await service.updateTask(
+          completedTask.id,
+          incompleteTaskDto,
+          viewerUser
+        );
 
         // Assert
         expect(taskRepository.update).toHaveBeenCalledWith(
@@ -750,9 +1052,9 @@ describe('TasksService', () => {
       taskRepository.findOne.mockResolvedValue(null);
 
       // Act & Assert
-      await expect(service.updateTask('non-existent-task', updateTaskDto, ownerUser)).rejects.toThrow(
-        new NotFoundException('Task not found')
-      );
+      await expect(
+        service.updateTask('non-existent-task', updateTaskDto, ownerUser)
+      ).rejects.toThrow(new NotFoundException('Task not found'));
     });
   });
 
@@ -797,7 +1099,10 @@ describe('TasksService', () => {
 
       it('should allow Viewer to delete only their own tasks', async () => {
         // Arrange
-        const viewerWithRole = { ...viewerUser, role: { name: RoleType.VIEWER } };
+        const viewerWithRole = {
+          ...viewerUser,
+          role: { name: RoleType.VIEWER },
+        };
         taskRepository.findOne.mockResolvedValue(viewerTask as any);
         taskRepository.remove.mockResolvedValue({} as any);
         auditService.logAction.mockResolvedValue({} as any);
@@ -811,13 +1116,46 @@ describe('TasksService', () => {
 
       it('should deny Viewer from deleting other users tasks', async () => {
         // Arrange
-        const viewerWithRole = { ...viewerUser, role: { name: RoleType.VIEWER } };
+        const viewerWithRole = {
+          ...viewerUser,
+          role: { name: RoleType.VIEWER },
+        };
         taskRepository.findOne.mockResolvedValue(adminTask as any);
 
         // Act & Assert
-        await expect(service.deleteTask(adminTask.id, viewerWithRole)).rejects.toThrow(
-          new ForbiddenException('You can only delete your own tasks or be an admin/owner')
+        await expect(
+          service.deleteTask(adminTask.id, viewerWithRole)
+        ).rejects.toThrow(
+          new ForbiddenException(
+            'You can only delete your own tasks or need admin/owner role'
+          )
         );
+      });
+
+      it('should allow Owner to delete task in child org via inherited role', async () => {
+        const childOrgTask = {
+          ...adminTask,
+          organizationId: subOrganization.id,
+        };
+        taskRepository.findOne.mockResolvedValue(childOrgTask as any);
+        taskRepository.remove.mockResolvedValue({} as any);
+        effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.OWNER);
+
+        await service.deleteTask(childOrgTask.id, ownerUser);
+        expect(taskRepository.remove).toHaveBeenCalledWith(childOrgTask);
+      });
+
+      it('should deny delete on child org task when user lost parent membership', async () => {
+        const childOrgTask = {
+          ...adminTask,
+          organizationId: subOrganization.id,
+        };
+        taskRepository.findOne.mockResolvedValue(childOrgTask as any);
+        effectiveRoleService.getEffectiveRole.mockResolvedValue(null);
+
+        await expect(
+          service.deleteTask(childOrgTask.id, ownerUser)
+        ).rejects.toThrow(ForbiddenException);
       });
     });
 
@@ -826,9 +1164,9 @@ describe('TasksService', () => {
       taskRepository.findOne.mockResolvedValue(null);
 
       // Act & Assert
-      await expect(service.deleteTask('non-existent-task', ownerUser)).rejects.toThrow(
-        new NotFoundException('Task not found')
-      );
+      await expect(
+        service.deleteTask('non-existent-task', ownerUser)
+      ).rejects.toThrow(new NotFoundException('Task not found'));
     });
   });
 
@@ -844,10 +1182,18 @@ describe('TasksService', () => {
       taskRepository.findOne
         .mockResolvedValueOnce(viewerTask as any)
         .mockResolvedValueOnce(adminTask as any);
-      
-      const updatedViewerTask = { ...viewerTask, sortOrder: 1, status: TaskStatus.IN_PROGRESS };
-      const updatedAdminTask = { ...adminTask, sortOrder: 2, status: TaskStatus.TODO };
-      
+
+      const updatedViewerTask = {
+        ...viewerTask,
+        sortOrder: 1,
+        status: TaskStatus.IN_PROGRESS,
+      };
+      const updatedAdminTask = {
+        ...adminTask,
+        sortOrder: 2,
+        status: TaskStatus.TODO,
+      };
+
       taskRepository.save
         .mockResolvedValueOnce(updatedViewerTask as any)
         .mockResolvedValueOnce(updatedAdminTask as any);
@@ -866,8 +1212,12 @@ describe('TasksService', () => {
       taskRepository.findOne
         .mockResolvedValueOnce(viewerTask as any) // User's own task
         .mockResolvedValueOnce(adminTask as any); // Other user's task
-      
-      const updatedViewerTask = { ...viewerTask, sortOrder: 1, status: TaskStatus.IN_PROGRESS };
+
+      const updatedViewerTask = {
+        ...viewerTask,
+        sortOrder: 1,
+        status: TaskStatus.IN_PROGRESS,
+      };
       taskRepository.save.mockResolvedValueOnce(updatedViewerTask as any);
 
       // Act
@@ -885,8 +1235,12 @@ describe('TasksService', () => {
       taskRepository.findOne
         .mockResolvedValueOnce(null) // First task not found
         .mockResolvedValueOnce(adminTask as any); // Second task found
-      
-      const updatedAdminTask = { ...adminTask, sortOrder: 2, status: TaskStatus.TODO };
+
+      const updatedAdminTask = {
+        ...adminTask,
+        sortOrder: 2,
+        status: TaskStatus.TODO,
+      };
       taskRepository.save.mockResolvedValueOnce(updatedAdminTask as any);
 
       // Act
@@ -906,13 +1260,14 @@ describe('TasksService', () => {
       });
 
       // Act & Assert
-      const validCreateDto = {
+      const validCreateDto: CreateTaskDto = {
         ...mockTaskDtos.create,
-        dueDate: '2023-12-31', // Convert Date to string
+        dueDate: '2023-12-31',
+        organizationId: 'org-123',
       };
-      await expect(service.createTask(validCreateDto, ownerUser)).rejects.toThrow(
-        'Database connection failed'
-      );
+      await expect(
+        service.createTask(validCreateDto, ownerUser)
+      ).rejects.toThrow('Database connection failed');
     });
 
     it('should handle database errors during task fetching', async () => {
@@ -929,7 +1284,11 @@ describe('TasksService', () => {
 
     it('should handle validation errors gracefully', async () => {
       // Arrange
-      const invalidDto = { title: '', description: '', priority: 'INVALID' } as any;
+      const invalidDto = {
+        title: '',
+        description: '',
+        priority: 'INVALID',
+      } as any;
 
       // The service doesn't validate input (that's done at controller level)
       // But it should handle unexpected values gracefully
@@ -948,4 +1307,4 @@ describe('TasksService', () => {
       expect(result).toBeDefined();
     });
   });
-}); 
+});

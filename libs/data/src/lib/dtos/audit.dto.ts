@@ -27,6 +27,10 @@ export class CreateAuditLogDto {
 
   @IsOptional()
   @IsUUID()
+  organizationId?: string | null;
+
+  @IsOptional()
+  @IsUUID()
   resourceId?: string;
 
   @IsOptional()
@@ -56,6 +60,7 @@ export class AuditLogResponseDto {
   userId: string;
   userEmail: string;
   userFullName: string;
+  organizationId?: string | null;
   action: AuditAction;
   resource: AuditResource;
   resourceId?: string;
@@ -68,8 +73,13 @@ export class AuditLogResponseDto {
   actionDescription: string;
 }
 
-// DTO for querying audit logs with filters and pagination
+// DTO for querying audit logs with filters and pagination (org-scoped: only admin/owner can view)
 export class AuditLogQueryDto {
+  /** Required for listing: org the user has admin/owner access to. Logs filtered by this org (and optionally includeChildOrgs). */
+  @IsOptional()
+  @IsUUID()
+  organizationId?: string;
+
   @IsOptional()
   @IsUUID()
   userId?: string;
@@ -126,6 +136,10 @@ export class AuditLogQueryDto {
 
   @IsOptional()
   @IsString()
-  @IsEnum(['ASC', 'DESC'])
   sortOrder?: 'ASC' | 'DESC' = 'DESC';
+
+  /** When true and organizationId is set, include logs for child orgs. */
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  includeChildOrgs?: boolean;
 }

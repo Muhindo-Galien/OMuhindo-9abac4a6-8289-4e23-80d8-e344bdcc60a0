@@ -86,10 +86,8 @@ export class Task {
   @Column({ type: 'uuid' })
   organizationId: string;
 
-  // Many-to-one relationship with organization
-  @ManyToOne(() => Organization, {
-    eager: true,
-  })
+  // Many-to-one relationship with organization (cascade delete when org is deleted)
+  @ManyToOne(() => Organization, { eager: true, onDelete: 'CASCADE' })
   organization: Organization;
 
   @CreateDateColumn({ name: 'created_at' })

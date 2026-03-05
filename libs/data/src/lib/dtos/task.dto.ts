@@ -47,7 +47,8 @@ export class CreateTaskDto {
   @IsUUID()
   ownerId?: string; // Optional: if not provided, defaults to current user
 
-  // organizationId will be automatically set from the authenticated user
+  @IsUUID()
+  organizationId: string; // Required: scope task to org (user must have access)
 }
 
 // Update Task DTO
@@ -123,6 +124,10 @@ export class TaskResponseDto {
 
 // Task List Query DTO (for filtering/sorting)
 export class TaskQueryDto {
+  @IsOptional()
+  @IsUUID()
+  organizationId?: string; // Filter by org (user must have access)
+
   @IsOptional()
   @IsEnum(TaskStatus)
   status?: TaskStatus;

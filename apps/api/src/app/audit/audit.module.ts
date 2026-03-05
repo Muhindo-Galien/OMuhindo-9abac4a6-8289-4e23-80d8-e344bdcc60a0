@@ -1,33 +1,32 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
-// Import entities from libs
-import { AuditLog, User } from '@data';
+import { AuditLog, User, Organization } from '@data';
 import { AuthService, JwtStrategy, RbacGuard, RbacService } from '@auth';
 
-// Local components
 import { AuditController } from './audit.controller';
 import { AuditService } from './audit.service';
 import { AuditInterceptor } from './interceptors/audit.interceptor';
+import { OrganizationsModule } from '../organizations/organizations.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
-    // Import entities for repository injection
-    TypeOrmModule.forFeature([AuditLog, User]),
-    
-    // Passport for authentication strategies
+    TypeOrmModule.forFeature([AuditLog, User, Organization]),
+    forwardRef(() => OrganizationsModule),
+    AuthModule,
     PassportModule,
-    
+
     // JWT module configuration (same as other modules)
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET') || 'your-secret-key',
-        signOptions: { 
-          expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '24h' 
+        signOptions: {
+          expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '24h',
         },
       }),
       inject: [ConfigService],
@@ -44,4 +43,4 @@ import { AuditInterceptor } from './interceptors/audit.interceptor';
   ],
   exports: [AuditService, AuditInterceptor], // Export service and interceptor for use in other modules
 })
-export class AuditModule {} 
+export class AuditModule {}

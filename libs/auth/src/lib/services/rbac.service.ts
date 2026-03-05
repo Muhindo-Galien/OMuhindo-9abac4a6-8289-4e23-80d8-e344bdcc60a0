@@ -13,17 +13,25 @@ export class RbacService {
   }
 
   /**
-   * Check if user has any of the specified roles
+   * Check if user has any of the specified roles. Global role "user" satisfies VIEWER.
    */
   hasRole(user: any, roles: RoleType[]): boolean {
-    return roles.includes(user.role);
+    const r = user.role;
+    if (r === 'user') return roles.includes(RoleType.VIEWER);
+    return roles.includes(r);
   }
 
   /**
-   * Check if user has sufficient role level
+   * Check if user has sufficient role level. Global "user" is treated as level 0.
    */
   hasRoleLevel(user: any, minimumLevel: number): boolean {
-    return user.roleLevel >= minimumLevel;
+    if (user.role === 'user') return minimumLevel <= 0;
+    const levels: Record<string, number> = {
+      [RoleType.VIEWER]: 0,
+      [RoleType.ADMIN]: 1,
+      [RoleType.OWNER]: 2,
+    };
+    return (levels[user.role] ?? -1) >= minimumLevel;
   }
 
   /**

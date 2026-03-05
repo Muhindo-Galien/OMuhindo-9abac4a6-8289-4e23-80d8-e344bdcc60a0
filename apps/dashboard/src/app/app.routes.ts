@@ -5,16 +5,18 @@ export const appRoutes: Route[] = [
   {
     path: '',
     redirectTo: '/dashboard',
-    pathMatch: 'full'
+    pathMatch: 'full',
   },
   {
     path: 'login',
-    loadComponent: () => import('./auth/login.component').then(c => c.LoginComponent)
+    loadComponent: () =>
+      import('./auth/login.component').then(c => c.LoginComponent),
   },
   {
     path: 'dashboard',
     canActivate: [AuthGuard],
-    loadComponent: () => import('./tasks/task-board.component').then(c => c.TaskBoardComponent)
+    loadComponent: () =>
+      import('./tasks/task-board.component').then(c => c.TaskBoardComponent),
   },
   {
     path: 'tasks',
@@ -23,25 +25,30 @@ export const appRoutes: Route[] = [
       {
         path: '',
         redirectTo: 'board',
-        pathMatch: 'full'
+        pathMatch: 'full',
       },
       {
         path: 'board',
-        loadComponent: () => import('./tasks/task-board.component').then(c => c.TaskBoardComponent)
+        loadComponent: () =>
+          import('./tasks/task-board.component').then(
+            c => c.TaskBoardComponent
+          ),
       },
       {
         path: 'list',
-        loadComponent: () => import('./tasks/task-list.component').then(c => c.TaskListComponent)
-      }
-    ]
+        loadComponent: () =>
+          import('./tasks/task-list.component').then(c => c.TaskListComponent),
+      },
+    ],
   },
   {
     path: 'audit-logs',
     canActivate: [AuthGuard],
-    loadComponent: () => import('./audit/audit-logs.component').then(c => c.AuditLogsComponent)
+    loadComponent: () =>
+      import('./audit/audit-logs.component').then(c => c.AuditLogsComponent),
   },
   {
     path: '**',
-    redirectTo: '/dashboard'
-  }
+    redirectTo: '/dashboard',
+  },
 ];

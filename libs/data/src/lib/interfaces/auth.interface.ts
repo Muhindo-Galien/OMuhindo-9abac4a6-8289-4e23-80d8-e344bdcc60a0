@@ -1,58 +1,52 @@
 import { RoleType } from '../models/role.model';
 
-// Authentication Strategy Interface
 export interface IAuthStrategy {
   validate(payload: any): Promise<any>;
 }
 
-// JWT Strategy Payload
+/** JWT payload: global role "user"; org_roles when memberships exist (e.g. after refresh). */
 export interface JwtStrategyPayload {
-  sub: string; // User ID
+  sub: string;
   email: string;
-  role: RoleType;
-  roleLevel: number;
-  organizationId: string;
-  iat: number;
-  exp?: number; // Optional - JWT library sets this automatically
+  role: string; // global: "user"
+  org_roles?: Record<string, RoleType>;
+  iat?: number;
+  exp?: number;
 }
 
-// Local Strategy Validation Result
 export interface LocalStrategyResult {
   user: {
     id: string;
     email: string;
-    role: RoleType;
-    organizationId: string;
+    role: string;
+    org_roles?: Record<string, RoleType>;
   };
   isValid: boolean;
 }
 
-// Auth Service Interface
 export interface IAuthService {
   validateUser(email: string, password: string): Promise<any>;
-  login(user: any): Promise<{ access_token: string }>;
+  login(user: any, orgRoles?: Record<string, RoleType>): Promise<{ access_token: string }>;
   register(userData: any): Promise<any>;
-  generateJwtPayload(user: any): any;
+  generateJwtPayload(user: any, orgRoles?: Record<string, RoleType>): JwtStrategyPayload;
   hashPassword(password: string): Promise<string>;
   comparePassword(password: string, hashedPassword: string): Promise<boolean>;
 }
 
-// JWT Service Interface
 export interface IJwtService {
   sign(payload: any, options?: any): string;
   verify(token: string): any;
   decode(token: string): any;
 }
 
-// Auth Guard Context
+/** Request user after JWT validation: id, email, global role, optional org_roles. */
 export interface AuthGuardContext {
   user: {
     id: string;
     email: string;
-    role: RoleType;
-    roleLevel: number;
-    organizationId: string;
-    permissions: string[];
+    role: string;
+    org_roles?: Record<string, RoleType>;
+    permissions?: string[];
   };
   request: any;
   response: any;
