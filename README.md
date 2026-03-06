@@ -248,30 +248,29 @@ Register a new user account.
 **Request:**
 ```json
 {
-  "email": "user@example.com",
-  "password": "password123",
-  "firstName": "John",
-  "lastName": "Doe",
-  "organizationId": "4ed2265b-c65d-462e-ac02-f9e55e7bbb61",
-  "roleId": "6d5992dd-0a8a-410e-bf83-0b15323d67b2"
+  "email":"joe@negro.com",
+  "password":"Test@123",
+  "firstName":"Joe",
+  "lastName":"Negro"
 }
 ```
 
 **Response:**
 ```json
 {
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "user": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "firstName": "John",
-    "lastName": "Doe",
-    "role": "viewer",
-    "organizationId": "uuid",
-    "isActive": true,
-    "createdAt": "2024-01-01T00:00:00.000Z",
-    "updatedAt": "2024-01-01T00:00:00.000Z"
-  }
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9....",
+    "user": {
+        "id": "ad45b68c-5d4c-492a-b911-5d7c4fd3c614",
+        "email": "joe@negro.com",
+        "firstName": "Joe",
+        "lastName": "Negro",
+        "role": "user",
+        "isActive": true,
+        "createdAt": "2026-03-06T14:21:02.957Z",
+        "updatedAt": "2026-03-06T14:21:02.957Z",
+        "org_roles": {},
+        "memberships": []
+    }
 }
 ```
 
@@ -313,46 +312,44 @@ Create a new task (permission check applied).
 
 **Request:**
 ```json
-{
-  "title": "Complete project documentation",
-  "description": "Write comprehensive API documentation for the project",
-  "status": "todo",
-  "priority": "high", 
-  "category": "work",
-  "dueDate": "2024-12-31T23:59:59.000Z",
-  "ownerId": "4104c558-bb96-4f54-8857-9b80da9dacca",
-  "sortOrder": 1
-}
+{"title":"first task",
+"description":"this is for testing pursposes",
+"priority":"high",
+"category":"work",
+"status":"todo",
+"dueDate":"2026-03-07T00:00:00.000Z",
+"ownerId":"45703ba8-ad97-47b1-8a98-6351e6e38a9c",
+"organizationId":"7cb13e03-7b48-4419-a2fa-c6c6ef3c445d"}
 ```
 
 **Response:**
 ```json
 {
-  "id": "0061c53b-b0ef-4c2a-9050-01ce8204e462",
-  "title": "Complete project documentation",
-  "description": "Write comprehensive API documentation for the project",
-  "status": "todo",
-  "priority": "high",
-  "category": "work",
-  "dueDate": "2024-12-31T23:59:59.000Z",
-  "completedAt": null,
-  "sortOrder": 1,
-  "ownerId": "4104c558-bb96-4f54-8857-9b80da9dacca",
-  "owner": {
-      "id": "4104c558-bb96-4f54-8857-9b80da9dacca",
-      "email": "tejas3@turbovets.com",
-      "firstName": "Tejas",
-      "lastName": "Turbovets"
-  },
-  "organizationId": "4ed2265b-c65d-462e-ac02-f9e55e7bbb61",
-  "organization": {
-      "id": "4ed2265b-c65d-462e-ac02-f9e55e7bbb61",
-      "name": "TurboVets"
-  },
-  "createdAt": "2025-08-08T21:18:09.829Z",
-  "updatedAt": "2025-08-08T21:18:09.829Z",
-  "isOverdue": true,
-  "isCompleted": false
+    "id": "562b8364-4831-4cbc-97e0-c9fd59118eaf",
+    "title": "first task",
+    "description": "this is for testing pursposes",
+    "status": "todo",
+    "priority": "high",
+    "category": "work",
+    "dueDate": "2026-03-07T00:00:00.000Z",
+    "completedAt": null,
+    "sortOrder": 0,
+    "ownerId": "45703ba8-ad97-47b1-8a98-6351e6e38a9c",
+    "owner": {
+        "id": "45703ba8-ad97-47b1-8a98-6351e6e38a9c",
+        "email": "owner@turbovets.com",
+        "firstName": "Owner",
+        "lastName": "User"
+    },
+    "organizationId": "7cb13e03-7b48-4419-a2fa-c6c6ef3c445d",
+    "organization": {
+        "id": "7cb13e03-7b48-4419-a2fa-c6c6ef3c445d",
+        "name": "Marketing updated"
+    },
+    "createdAt": "2026-03-06T14:11:32.443Z",
+    "updatedAt": "2026-03-06T14:11:32.443Z",
+    "isOverdue": false,
+    "isCompleted": false
 }
 ```
 
@@ -368,60 +365,33 @@ List accessible tasks (scoped to role/organization).
 **Response:**
 ```json
 [
-  {
-    "id": "4d922472-ec2c-456b-8024-ec99044d24cd",
-    "title": "Complete project documentation",
-    "description": "Write comprehensive API documentation for the project",
-    "status": "todo",
-    "priority": "high",
-    "category": "work",
-    "dueDate": "2024-12-31T23:59:59.000Z",
-    "completedAt": null,
-    "sortOrder": 1,
-    "ownerId": "4104c558-bb96-4f54-8857-9b80da9dacca",
-    "owner": {
-        "id": "4104c558-bb96-4f54-8857-9b80da9dacca",
-        "email": "tejas3@turbovets.com",
-        "firstName": "Tejas",
-        "lastName": "Turbovets"
-    },
-    "organizationId": "4ed2265b-c65d-462e-ac02-f9e55e7bbb61",
-    "organization": {
-        "id": "4ed2265b-c65d-462e-ac02-f9e55e7bbb61",
-        "name": "TurboVets"
-    },
-    "createdAt": "2025-08-08T20:50:38.046Z",
-    "updatedAt": "2025-08-08T20:59:03.437Z",
-    "isOverdue": true,
-    "isCompleted": false
-  },
-  {
-    "id": "f5b617ff-af32-4bd5-a60a-ff17d80f7919",
-    "title": "New Title",
-    "description": "New",
-    "status": "in_progress",
-    "priority": "medium",
-    "category": "work",
-    "dueDate": null,
-    "completedAt": null,
-    "sortOrder": 0,
-    "ownerId": "fe37473c-e9e6-4e96-b2fc-310325b9235c",
-    "owner": {
-        "id": "fe37473c-e9e6-4e96-b2fc-310325b9235c",
-        "email": "owner@turbovets.com",
-        "firstName": "Owner",
-        "lastName": "Turbovets"
-    },
-    "organizationId": "4ed2265b-c65d-462e-ac02-f9e55e7bbb61",
-    "organization": {
-        "id": "4ed2265b-c65d-462e-ac02-f9e55e7bbb61",
-        "name": "TurboVets"
-    },
-    "createdAt": "2025-08-08T20:09:51.375Z",
-    "updatedAt": "2025-08-08T20:38:22.310Z",
-    "isOverdue": false,
-    "isCompleted": false
-  }
+    {
+        "id": "562b8364-4831-4cbc-97e0-c9fd59118eaf",
+        "title": "first task",
+        "description": "this is for testing pursposes",
+        "status": "todo",
+        "priority": "high",
+        "category": "work",
+        "dueDate": "2026-03-07T00:00:00.000Z",
+        "completedAt": null,
+        "sortOrder": 0,
+        "ownerId": "45703ba8-ad97-47b1-8a98-6351e6e38a9c",
+        "owner": {
+            "id": "45703ba8-ad97-47b1-8a98-6351e6e38a9c",
+            "email": "owner@turbovets.com",
+            "firstName": "Owner",
+            "lastName": "User"
+        },
+        "organizationId": "7cb13e03-7b48-4419-a2fa-c6c6ef3c445d",
+        "organization": {
+            "id": "7cb13e03-7b48-4419-a2fa-c6c6ef3c445d",
+            "name": "Marketing updated"
+        },
+        "createdAt": "2026-03-06T14:11:32.443Z",
+        "updatedAt": "2026-03-06T14:11:32.443Z",
+        "isOverdue": false,
+        "isCompleted": false
+    }
 ]
 ```
 
@@ -493,7 +463,7 @@ View access logs (Owner/Admin only).
 ]
 ```
 
-## 🎨 Frontend Features
+## Frontend Features
 
 ### Authentication UI
 - **Login form** with email/password validation
@@ -501,14 +471,60 @@ View access logs (Owner/Admin only).
 - **Auto-redirect** based on authentication status
 - **Error handling** with user-friendly messages
 
-### Task Management Dashboard
-- **Kanban board** with drag-and-drop between columns (TODO, IN_PROGRESS, DONE)
-- **Task cards** with priority indicators and due dates
-- **Real-time filtering** by status, priority, category
-- **Search functionality** across title and description
-- **Responsive design** from mobile to desktop
+### Frontend Features (Dashboard)
 
-### Features Implementation
+- **Organization creation & onboarding**
+  - Create top-level organizations (sites) from the orgs page.
+  - First member is automatically granted **Owner** role for that organization.
+  - After creating an org, the frontend refreshes the auth profile so org-scoped roles and memberships are immediately available.
+
+- **Organization management (sites & spaces)**
+  - Dedicated **Manage** view for each organization, structured into tabs:
+    - **Organization**: rename or delete the current org (owner only).
+    - **Spaces**: manage child orgs (spaces) under a site – create, edit, delete (site admin/owner only).
+    - **Members**: view and manage members per org (site or space), including role updates where allowed.
+    - **Invitations**: invite new users into a specific org and view pending invitations.
+  - Behavior is **org-scoped**: all actions (members, invitations, spaces) are evaluated per organization id, not globally.
+
+- **Organization-scoped roles**
+  - Effective role per organization is derived from memberships and parent/child hierarchy:
+    - **Owner** and **Admin** on a parent site are inherited by its spaces.
+    - A user can also be **Admin** of a single child space without any role on the parent.
+  - Frontend guards and permissions (e.g. manage tab, spaces tab, members actions) use these effective roles:
+    - Site admins/owners can manage spaces.
+    - Child-only admins can manage **members and invitations** for their space, but cannot create/delete spaces.
+
+- **Members & invitations**
+  - **Members tab**:
+    - View members for a selected org (site or space).
+    - Owners can update roles (admin/viewer) within that org.
+    - Admins/owners can revoke memberships, with special handling when revoking themselves.
+  - **Invitations tab**:
+    - Send invitations scoped to a specific org (site or space).
+    - See pending invitations per org, with role and expiry information.
+  - After invites are accepted or memberships change, the frontend uses an **auth refresh** endpoint so org roles and memberships stay in sync.
+
+- **Registration & login flows**
+  - **Registration**:
+    - Standard sign-up creates a user and immediately returns a JWT plus a profile containing org roles and memberships.
+    - Invite-based registration pre-fills and locks the email from the invite and assigns the invited role within that organization.
+  - **Login**:
+    - On successful login, the frontend stores the JWT and user profile, including `org_roles` and `memberships`, used throughout the app for permission checks.
+    - Demo credentials are provided for Owner/Admin/Viewer flows.
+
+- **Role revocation & org context**
+  - When a user revokes their own membership from an org (or an org is deleted), the frontend:
+    - Refreshes the auth profile to drop roles and memberships for that org.
+    - Clears the current org context and returns the user to the orgs page.
+  - All task and manage pages listen to current org changes so they automatically react to org selection and revocation.
+
+- **Task Management Dashboard**
+  - **Kanban board** with drag-and-drop between columns (TODO, IN_PROGRESS, DONE)
+  - **Task cards** with priority indicators and due dates
+  - **Real-time filtering** by status, priority, category
+  - **Search functionality** across title and description
+  - **Responsive design** from mobile to desktop
+
 - **Drag-and-drop** reordering using Angular CDK
 - **Task creation/editing** with modal forms
 - **Task completion visualization** with statistics
@@ -554,6 +570,12 @@ JWT_EXPIRES_IN=24h
 # Application Configuration
 NODE_ENV=development
 PORT=3000
+
+# This is tempory, i will delete after getting a feeback from the reviewer
+MAILTRAP_SMTP_HOST=sandbox.smtp.mailtrap.io
+MAILTRAP_SMTP_PORT=2525
+MAILTRAP_SMTP_USER=4ffd0c74af47e6
+MAILTRAP_SMTP_PASS=9b49ca1d6e681a
 ```
 
 ### Database Setup
@@ -565,10 +587,12 @@ createdb secure_task_management
 
 2. **Database will auto-create tables** on first run (TypeORM synchronize in development)
 
-3. **Seed data** is automatically loaded including demo users:
+3. **Seed data** is automatically loaded including demo users and demo parent org(sites) and its Child org(space):
    - **Owner**: owner@example.com / password123
    - **Admin**: admin@example.com / password123  
    - **Viewer**: viewer@example.com / password123
+   - **turbo vets** : parent org
+   - **default space**: child org
 
 ### Installation & Running
 
@@ -638,6 +662,10 @@ NODE_ENV=production
 DATABASE_URL=postgresql://user:pass@host:port/dbname
 JWT_SECRET=secure-random-string
 JWT_EXPIRES_IN=1h
+MAILTRAP_SMTP_HOST=
+MAILTRAP_SMTP_PORT=
+MAILTRAP_SMTP_USER=
+MAILTRAP_SMTP_PASS=
 ```
 
 3. **Database migrations:**
@@ -665,52 +693,28 @@ npm test
 
 # Generate coverage report
 npm run test:coverage
-
-# Current coverage targets:
-# - Backend: >80% line coverage
-# - Frontend: >70% line coverage
 ```
 
-## 🔮 Future Considerations
+## Future Considerations
 
-### Advanced Role Delegation
-- **Custom role creation** with granular permission assignment
-- **Temporary role delegation** for project-based access
-- **Role inheritance** from parent organizations
-- **Time-based role activation/deactivation**
+These ideas extend the current feature set (org hierarchy, org-scoped roles, tasks, audit logging) rather than introduce unrelated functionality.
 
-### Production-Ready Security
-- **JWT refresh tokens** for enhanced security
-- **CSRF protection** for state-changing operations  
-- **Rate limiting** on authentication endpoints
-- **RBAC caching** with Redis for performance
-- **Audit log encryption** for sensitive data
-- **Password complexity requirements**
-- **Multi-factor authentication (MFA)**
+### Org & Role Model
+- **Custom per‑org roles** on top of Owner/Admin/Viewer, with configurable permissions per organization.
+- **Time‑boxed delegation** (e.g. temporary Admin on a space for a sprint) with automatic expiry and audit.
 
-### Scaling Considerations
-- **Permission check optimization** with caching layers
-- **Database indexing** for large task datasets
-- **API pagination** for task listing
-- **Real-time updates** with WebSockets
-- **Microservices architecture** for larger organizations
-- **Event sourcing** for audit trail completeness
+### Performance & Caching
+- **Add caching using Redis** for:
+  - Effective org roles per user (used by guards and task/org services).
+  - Organization trees (sites + spaces) and membership summaries for faster navigation and Manage views.
 
-### Enhanced Features
-- **Task dependencies** and project management
-- **File attachments** and comments
-- **Team collaboration** features
-- **Advanced reporting** and analytics
-- **Mobile application** with React Native
-- **Notification system** for task updates
-- **Integration APIs** for third-party tools
+### Task & Board Experience
+- **Configurable workflows per space** (custom columns and transitions, similar to Jira boards).
+- **Lightweight task relationships** (e.g. blocked‑by / relates‑to) to support cross‑space coordination.
 
-### Monitoring & Observability
-- **Application metrics** with Prometheus
-- **Distributed tracing** for request flows
-- **Error tracking** with Sentry
-- **Performance monitoring** for database queries
-- **Security event monitoring** for audit logs
+### Security & Observability
+- **Stronger auth hardening**: password policies, optional MFA, and rate limiting on auth endpoints.
+- **Richer audit events and metrics** around role changes, membership revocation, and failed org/task mutations.
 
 ## 📝 Assessment Notes
 

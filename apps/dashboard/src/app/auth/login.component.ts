@@ -1,14 +1,26 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import {
+  ReactiveFormsModule,
+  FormBuilder,
+  FormGroup,
+  Validators,
+} from '@angular/forms';
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { ButtonComponent } from '../shared/components/button.component';
+import { AuthInputFieldComponent } from './auth-input-field.component';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, ButtonComponent],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    RouterLink,
+    ButtonComponent,
+    AuthInputFieldComponent,
+  ],
   template: `
     <div
       class="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8"
@@ -42,75 +54,25 @@ import { ButtonComponent } from '../shared/components/button.component';
           >
             <div class="rounded-md space-y-4">
               <!-- Email Field -->
-              <div>
-                <label
-                  for="email"
-                  class="block text-sm font-medium text-gray-100 mb-1"
-                >
-                  Email address
-                </label>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  formControlName="email"
-                  required
-                  class="relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-turbovets-navy focus:border-turbovets-navy focus:z-10 sm:text-sm bg-white"
-                  placeholder="Enter your email"
-                  [class.border-red-500]="
-                    loginForm.get('email')?.invalid &&
-                    loginForm.get('email')?.touched
-                  "
-                />
-                <div
-                  *ngIf="
-                    loginForm.get('email')?.invalid &&
-                    loginForm.get('email')?.touched
-                  "
-                  class="mt-1 text-sm text-red-600"
-                >
-                  <span *ngIf="loginForm.get('email')?.errors?.['required']"
-                    >Email is required</span
-                  >
-                  <span *ngIf="loginForm.get('email')?.errors?.['email']"
-                    >Please enter a valid email</span
-                  >
-                </div>
-              </div>
+              <app-auth-input-field
+                label="Email address"
+                id="email"
+                type="email"
+                [control]="loginForm.get('email')"
+                placeholder="Enter your email"
+                [requiredMessage]="'Email is required'"
+                [emailMessage]="'Please enter a valid email'"
+              ></app-auth-input-field>
 
               <!-- Password Field -->
-              <div>
-                <label
-                  for="password"
-                  class="block text-sm font-medium text-gray-100 mb-1"
-                >
-                  Password
-                </label>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  formControlName="password"
-                  required
-                  class="relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-turbovets-navy focus:border-turbovets-navy focus:z-10 sm:text-sm bg-white"
-                  placeholder="Enter your password"
-                  [class.border-red-500]="
-                    loginForm.get('password')?.invalid &&
-                    loginForm.get('password')?.touched
-                  "
-                />
-                <div
-                  *ngIf="
-                    loginForm.get('password')?.invalid &&
-                    loginForm.get('password')?.touched
-                  "
-                  class="mt-1 text-sm text-red-600"
-                >
-                  <span *ngIf="loginForm.get('password')?.errors?.['required']"
-                    >Password is required</span
-                  >
-                </div>
-              </div>
+              <app-auth-input-field
+                label="Password"
+                id="password"
+                type="password"
+                [control]="loginForm.get('password')"
+                placeholder="Enter your password"
+                [requiredMessage]="'Password is required'"
+              ></app-auth-input-field>
             </div>
 
             <!-- Error Message -->

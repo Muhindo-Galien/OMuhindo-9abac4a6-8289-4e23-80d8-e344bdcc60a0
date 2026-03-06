@@ -5,11 +5,12 @@ import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { InvitationService } from '../services/invitation.service';
 import { ButtonComponent } from '../shared/components/button.component';
+import { AuthInputFieldComponent } from './auth-input-field.component';
 
 @Component({
   selector: 'app-register',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, ButtonComponent],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, ButtonComponent, AuthInputFieldComponent],
   template: `
     <div
       class="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8"
@@ -91,85 +92,34 @@ import { ButtonComponent } from '../shared/components/button.component';
                 }
               </div>
 
-              <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <label
-                    for="firstName"
-                    class="block text-sm font-medium text-gray-100 mb-1"
-                    >First name</label
-                  >
-                  <input
-                    id="firstName"
-                    type="text"
-                    formControlName="firstName"
-                    class="relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-turbovets-navy focus:border-turbovets-navy focus:z-10 sm:text-sm bg-white"
-                    placeholder="Jane"
-                    [class.border-red-500]="
-                      registerForm.get('firstName')?.invalid &&
-                      registerForm.get('firstName')?.touched
-                    "
-                  />
-                  @if ( registerForm.get('firstName')?.invalid &&
-                  registerForm.get('firstName')?.touched ) {
-                  <div class="mt-1 text-sm text-red-600">
-                    <span>Required (min 2 characters)</span>
-                  </div>
-                  }
-                </div>
-                <div>
-                  <label
-                    for="lastName"
-                    class="block text-sm font-medium text-gray-100 mb-1"
-                    >Last name</label
-                  >
-                  <input
-                    id="lastName"
-                    type="text"
-                    formControlName="lastName"
-                    class="relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-turbovets-navy focus:border-turbovets-navy focus:z-10 sm:text-sm bg-white"
-                    placeholder="Doe"
-                    [class.border-red-500]="
-                      registerForm.get('lastName')?.invalid &&
-                      registerForm.get('lastName')?.touched
-                    "
-                  />
-                  @if ( registerForm.get('lastName')?.invalid &&
-                  registerForm.get('lastName')?.touched ) {
-                  <div class="mt-1 text-sm text-red-600">
-                    <span>Required (min 2 characters)</span>
-                  </div>
-                  }
-                </div>
-              </div>
+            <div class="grid grid-cols-2 gap-4">
+              <app-auth-input-field
+                label="First name"
+                id="firstName"
+                [control]="registerForm.get('firstName')"
+                placeholder="Jane"
+                [requiredMessage]="'Required (min 2 characters)'"
+                [minlengthMessage]="'Required (min 2 characters)'"
+              ></app-auth-input-field>
+              <app-auth-input-field
+                label="Last name"
+                id="lastName"
+                [control]="registerForm.get('lastName')"
+                placeholder="Doe"
+                [requiredMessage]="'Required (min 2 characters)'"
+                [minlengthMessage]="'Required (min 2 characters)'"
+              ></app-auth-input-field>
+            </div>
 
-              <div>
-                <label
-                  for="password"
-                  class="block text-sm font-medium text-gray-100 mb-1"
-                  >Password</label
-                >
-                <input
-                  id="password"
-                  type="password"
-                  formControlName="password"
-                  class="relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-turbovets-navy focus:border-turbovets-navy focus:z-10 sm:text-sm bg-white"
-                  placeholder="Min 6 characters"
-                  [class.border-red-500]="
-                    registerForm.get('password')?.invalid &&
-                    registerForm.get('password')?.touched
-                  "
-                />
-                @if ( registerForm.get('password')?.invalid &&
-                registerForm.get('password')?.touched ) {
-                <div class="mt-1 text-sm text-red-600">
-                  @if (registerForm.get('password')?.errors?.['required']) {
-                  <span>Password is required</span>
-                  } @if (registerForm.get('password')?.errors?.['minlength']) {
-                  <span>Password must be at least 6 characters</span>
-                  }
-                </div>
-                }
-              </div>
+            <app-auth-input-field
+              label="Password"
+              id="password"
+              type="password"
+              [control]="registerForm.get('password')"
+              placeholder="Min 6 characters"
+              [requiredMessage]="'Password is required'"
+              [minlengthMessage]="'Password must be at least 6 characters'"
+            ></app-auth-input-field>
             </div>
 
             @if (errorMessage) {
