@@ -53,9 +53,21 @@ interface TaskColumn {
       >
         <div class="flex-1 min-w-[180px] max-w-sm">
           <div class="relative">
-            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            <div
+              class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"
+            >
+              <svg
+                class="h-5 w-5 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
               </svg>
             </div>
             <input
@@ -75,8 +87,18 @@ interface TaskColumn {
           [class.ring-turbovets-navy]="filterPanelOpen"
           class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
         >
-          <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+          <svg
+            class="w-5 h-5 text-gray-500"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+            />
           </svg>
           Filter
         </button>
@@ -84,11 +106,23 @@ interface TaskColumn {
           type="button"
           (click)="openCreateModal()"
           [disabled]="!canCreateTasks()"
-          [title]="canCreateTasks() ? 'Create task' : TASKS_REQUIRE_SPACE_MESSAGE"
+          [title]="
+            canCreateTasks() ? 'Create task' : TASKS_REQUIRE_SPACE_MESSAGE
+          "
           class="ml-auto flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-turbovets-navy rounded-lg hover:bg-turbovets-navy/90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 4v16m8-8H4"
+            />
           </svg>
           Create task
         </button>
@@ -96,14 +130,14 @@ interface TaskColumn {
 
       <!-- Filter panel (visible only when Filter is clicked; no search here) -->
       @if (filterPanelOpen) {
-        <div class="container-padding pt-4 pb-2">
-          <app-task-filters
-            [showSearch]="false"
-            [isLoading]="isLoading"
-            [filterValues]="currentFilters"
-            (filterChange)="onFiltersChange($event)"
-          ></app-task-filters>
-        </div>
+      <div class="container-padding pt-4 pb-2">
+        <app-task-filters
+          [showSearch]="false"
+          [isLoading]="isLoading"
+          [filterValues]="currentFilters"
+          (filterChange)="onFiltersChange($event)"
+        ></app-task-filters>
+      </div>
       }
 
       <!-- Main Content -->
@@ -116,15 +150,19 @@ interface TaskColumn {
           <p class="mt-4 text-gray-600">Loading tasks...</p>
         </div>
 
-        <!-- Kanban Board -->
+        <!-- Kanban Board (Jira-style: header stays, board area scrolls) -->
         <div *ngIf="!isLoading" class="mt-6">
-          <div class="flex gap-6 overflow-x-auto pb-6">
+          <div
+            class="flex gap-6 items-stretch overflow-x-auto overflow-y-auto pb-6 max-h-[calc(100vh-220px)]"
+          >
             <div
               *ngFor="let column of columns; trackBy: trackByColumnId"
-              class="flex-shrink-0 w-80"
+              class="flex-shrink-0 w-80 flex flex-col"
             >
-              <!-- Column Header -->
-              <div class="flex items-center justify-between mb-4">
+              <!-- Column Header (sticky within scrollable board) -->
+              <div
+                class="flex items-center justify-between mb-4 sticky top-0 z-10 bg-gray-50 pt-2 pb-2"
+              >
                 <div class="flex items-center gap-2">
                   <div
                     [class]="column.color"
@@ -143,7 +181,7 @@ interface TaskColumn {
 
               <!-- Column Content -->
               <div
-                class="bg-gray-100 rounded-lg p-4 min-h-[400px]"
+                class="bg-gray-100 rounded-lg p-4 flex-1"
                 cdkDropList
                 [cdkDropListData]="column.tasks"
                 [cdkDropListConnectedTo]="getAllColumnIds()"
@@ -179,26 +217,6 @@ interface TaskColumn {
                   >
                     <!-- Empty placeholder that matches the card height -->
                   </div>
-                </div>
-
-                <!-- Empty Column Message -->
-                <div *ngIf="column.tasks.length === 0" class="text-center py-8">
-                  <svg
-                    class="mx-auto h-8 w-8 text-gray-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m13-8v.01M6 8v.01"
-                    />
-                  </svg>
-                  <p class="mt-2 text-sm text-gray-500">
-                    No {{ column.title.toLowerCase() }} tasks
-                  </p>
                 </div>
               </div>
             </div>

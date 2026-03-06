@@ -10,7 +10,7 @@ import {
   getInitialsFromWords,
 } from '../shared/utils/string.utils';
 
-import { OrgsHeaderComponent } from './orgs-header.component';
+import { AppHeaderComponent } from '../layout/app-header.component';
 import { OrgsWelcomeComponent } from './orgs-welcome.component';
 import { OrgCardComponent } from './org-card.component';
 import { OrgListEmptyComponent } from './org-list-empty.component';
@@ -29,7 +29,7 @@ import {
   standalone: true,
   imports: [
     CommonModule,
-    OrgsHeaderComponent,
+    AppHeaderComponent,
     OrgsWelcomeComponent,
     OrgCardComponent,
     OrgListEmptyComponent,
@@ -38,10 +38,11 @@ import {
   ],
   template: `
     <div class="min-h-screen bg-turbovets-bg font-sans">
-      <app-orgs-header
-        [userInitials]="getUserInitials()"
-        [userDisplayName]="getUserDisplayName()"
-      />
+      <app-app-header
+        [showSettings]="false"
+        (profileClick)="onProfile()"
+        (logoutClick)="onLogout()"
+      ></app-app-header>
 
       <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative">
         <app-org-list-decorations />
@@ -131,6 +132,17 @@ export class OrgListComponent implements OnInit {
 
   getOrgInitials(name: string): string {
     return getInitialsFromWords(name);
+  }
+
+  onProfile(): void {
+    // Already on /orgs; could later navigate to a dedicated profile page.
+    this.router.navigate(['/orgs']);
+  }
+
+  onLogout(): void {
+    this.orgContext.clearCurrentOrg();
+    this.authService.logout();
+    this.router.navigate(['/login']);
   }
 
   loadOrgs(): void {
