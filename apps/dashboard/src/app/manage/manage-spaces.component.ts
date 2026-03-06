@@ -16,7 +16,10 @@ import {
   InvitationListItem,
 } from '../services/invitation.service';
 import { AuthService } from '../services/auth.service';
-import { CreateOrgModalComponent, CreateOrgFormValue } from '../orgs/create-org-modal.component';
+import {
+  CreateOrgModalComponent,
+  CreateOrgFormValue,
+} from '../orgs/create-org-modal.component';
 import { InitialsAvatarComponent } from '../shared/components/initials-avatar.component';
 import { getInitialsFromWords } from '../shared/utils/string.utils';
 import { ManageInvitationsTabComponent } from './manage-invitations-tab.component';
@@ -314,7 +317,7 @@ type ManageTab = 'organization' | 'spaces' | 'members' | 'invitations';
                 >
                 }
               </div>
-              @if (canRevokeMember() && m.userId !== currentUserId()) {
+              @if (canRevokeMember(m)) {
               <button
                 type="button"
                 (click)="revokeMember(m.userId)"
@@ -548,11 +551,28 @@ export class ManageSpacesComponent implements OnInit {
     return this.hasRole(orgId, RoleType.OWNER);
   }
 
-  canRevokeMember(): boolean {
+  canRevokeMember(member: OrgMemberSummaryDto): boolean {
     const orgId = this.membersOrgId() ?? this.parentId();
-    return (
-      this.hasRole(orgId, RoleType.ADMIN) || this.hasRole(orgId, RoleType.OWNER)
-    );
+    if (!orgId) return false;
+    const currentId = this.currentUserId();
+    const memberRole = (member.role ?? '').toLowerCase();
+    const isSelf = member.userId === currentId;
+
+    // Viewer can only revoke themselves
+    if (this.hasRole(orgId, RoleType.VIEWER))
+      return isSelf;
+
+    // Admin can revoke only viewers, or themselves (leave)
+    if (this.hasRole(orgId, RoleType.ADMIN)) {
+      if (isSelf) return true;
+      return memberRole === 'viewer';
+    }
+
+    // Owner can revoke admins and viewers, not another owner
+    if (this.hasRole(orgId, RoleType.OWNER))
+      return memberRole === 'admin' || memberRole === 'viewer';
+
+    return false;
   }
 
   /** Only owner can update member roles (to admin or viewer). */

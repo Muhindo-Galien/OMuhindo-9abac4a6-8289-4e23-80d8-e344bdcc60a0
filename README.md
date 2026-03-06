@@ -1,12 +1,12 @@
-# 🚀 Secure Task Management System
+# Secure Task Management System
 
 A full-stack task management system built with **NestJS**, **Angular**, and **PostgreSQL** featuring role-based access control (RBAC), JWT authentication, and a responsive UI with drag-and-drop functionality.
 
-## 📌 Overview
+## Overview
 
 This is a secure task management system designed for organizations with role-based access control. Users can create, manage, and track tasks while respecting organizational hierarchy and permissions. The system supports three role levels (Owner, Admin, Viewer) with different levels of access to tasks and audit logs.
 
-## 🏗️ Architecture Overview
+## Project Architecture
 
 ### NX Monorepo Structure
 
@@ -23,6 +23,7 @@ secure-task-management-system/
 ### Technology Stack
 
 **Backend:**
+
 - **NestJS** - Node.js framework for scalable server-side applications
 - **TypeORM** - Object-relational mapping with PostgreSQL
 - **JWT** - JSON Web Token authentication
@@ -30,12 +31,14 @@ secure-task-management-system/
 - **Class Validator** - Request validation
 
 **Frontend:**
+
 - **Angular 18** - Modern web application framework
 - **TailwindCSS** - Utility-first CSS framework
 - **Angular CDK** - Component dev kit for drag-and-drop
 - **RxJS** - Reactive programming with observables
 
 **Database:**
+
 - **PostgreSQL** - Production-ready relational database
 
 ### Shared Libraries
@@ -152,14 +155,18 @@ erDiagram
     Organization ||--o{ AuditLog : "context"
 ```
 
+
+
 ### Core Entities
 
 **User**
+
 - Represents system users with personal information.
 - Has a **global role** (`globalRole`, currently always `"user"`); all fine‑grained access is organization‑scoped via memberships.
 - Password is hashed using bcrypt and never exposed in API responses.
 
 **Organization**
+
 - Supports a **site/space** hierarchy (2 levels):
   - **Site**: top‑level organization (no `parentId`).
   - **Space**: child organization with `parentId` set.
@@ -167,20 +174,21 @@ erDiagram
 - Access control is enforced per organization id, with role inheritance from sites to their spaces.
 
 **Role**
+
 - Three predefined **org‑scoped** roles: **Owner** (level 2), **Admin** (level 1), **Viewer** (level 0).
 - Each role has a numeric **level** for hierarchy and a set of permission strings (e.g. `task:create`, `task:read`) stored in `permissionIds`.
 - Roles are applied per organization via `OrganizationMember` rows; effective role per org is resolved at read time (with inheritance).
 
 **Task**
+
 - Core business entity representing a work item in a **space** (child org).
 - Status: `todo`, `in_progress`, `done`, `cancelled`.
 - Priority levels: `low`, `medium`, `high`, `urgent`.
 - Categories: `work`, `personal`, `project`, `meeting`, `other`.
 - Drag-and-drop sorting with `sortOrder`, used by the Kanban board.
 
-
-
 **AuditLog**
+
 - Tracks all user actions for security and compliance (this is organization-scoped)
 - Immutable log entries with timestamps
 
@@ -224,6 +232,7 @@ enum TaskPriority {
 RBAC is **organization-scoped**: the same user can be Owner/Admin/Viewer in different orgs, with inheritance from parent sites to child spaces.
 
 #### Role Hierarchy
+
 - **Owner** (Level 2): Full access to an organization and its child spaces.
 - **Admin** (Level 1): Manage tasks, spaces, members, and invitations within their organization level.
 - **Viewer** (Level 0): Read-only access to org resources; can only operate on their own tasks.
@@ -231,6 +240,7 @@ RBAC is **organization-scoped**: the same user can be Owner/Admin/Viewer in diff
 #### Guards and Decorators
 
 **JWT + org roles enrichment**
+
 ```typescript
 @UseGuards(JwtAuthGuard, EnrichOrgRolesGuard)
 @Controller('organizations')
@@ -240,6 +250,7 @@ export class OrganizationsController {
 ```
 
 **Org-scoped role protection**
+
 ```typescript
 @Get(':orgId/members')
 @UseGuards(JwtAuthGuard, EnrichOrgRolesGuard, OrgRoleGuard)
@@ -250,6 +261,7 @@ getMembers(@Param('orgId') orgId: string, @CurrentUser() user: { id: string }) {
 ```
 
 **Tasks in spaces (child orgs only)**
+
 ```typescript
 @Post()
 @UseGuards(JwtAuthGuard, EnrichOrgRolesGuard, RolesGuard, OrgRoleGuard, RequireSpaceOrgGuard)
@@ -277,6 +289,7 @@ Role inheritance is resolved by `EffectiveRoleService`, which walks up the org t
 #### Implementation Details
 
 **EffectiveRoleService (org-scoped roles)**
+
 ```typescript
 @Injectable()
 export class EffectiveRoleService {
@@ -292,6 +305,7 @@ export class EffectiveRoleService {
 ```
 
 **Audit Logging**
+
 - All actions logged with user, resource, action, and timestamp
 - Console logging for development, extensible for production
 - Audit logs accessible only to Owner/Admin roles
@@ -309,9 +323,11 @@ export class EffectiveRoleService {
 ### Authentication Endpoints
 
 #### POST /auth/register
+
 Register a new user account.
 
 **Request:**
+
 ```json
 {
   "email":"joe@negro.com",
@@ -322,6 +338,7 @@ Register a new user account.
 ```
 
 **Response:**
+
 ```json
 {
     "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9....",
@@ -539,9 +556,11 @@ Sample response:
   - Accepts an invitation, creates membership, updates org roles, and logs `INVITE_ACCEPTED`.
 
 #### POST /auth/login
+
 Authenticate user and receive JWT token.
 
 **Request:**
+
 ```json
 {
   "email":"joe@negro.com",
@@ -550,6 +569,7 @@ Authenticate user and receive JWT token.
 ```
 
 **Response:**
+
 ```json
 {
     "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.....",
@@ -573,9 +593,11 @@ Authenticate user and receive JWT token.
 All task endpoints require `Authorization: Bearer <token>` header.
 
 #### POST /tasks
+
 Create a new task (permission check applied).
 
 **Request:**
+
 ```json
 {"title":"first task",
 "description":"this is for testing pursposes",
@@ -588,6 +610,7 @@ Create a new task (permission check applied).
 ```
 
 **Response:**
+
 ```json
 {
     "id": "562b8364-4831-4cbc-97e0-c9fd59118eaf",
@@ -619,15 +642,18 @@ Create a new task (permission check applied).
 ```
 
 #### GET /tasks
+
 List accessible tasks (scoped to role/organization).
 
 **Query Parameters:**
+
 - `status`: Filter by task status (todo, in_progress, done, cancelled)
 - `priority`: Filter by priority (low, medium, high)
 - `category`: Filter by category (work, personal, project, meeting, other)
 - `search`: Search in title and description
 
 **Response:**
+
 ```json
 [
     {
@@ -661,12 +687,15 @@ List accessible tasks (scoped to role/organization).
 ```
 
 #### GET /tasks/:id
+
 Get specific task details (if permitted).
 
 #### PUT /tasks/:id
+
 Update task (if permitted).
 
 **Request:**
+
 ```json
 {
   "title": "Updated task title",
@@ -676,12 +705,15 @@ Update task (if permitted).
 ```
 
 #### DELETE /tasks/:id
+
 Delete task (if permitted).
 
 #### PUT /tasks/bulk
+
 Bulk update tasks (for drag-and-drop reordering).
 
 **Request:**
+
 ```json
 {
   "updates": [
@@ -701,9 +733,11 @@ Bulk update tasks (for drag-and-drop reordering).
 ### Audit Endpoints
 
 #### GET /audit-log?organizationId=6ae6bbbb.....
+
 View access logs (Owner/Admin only).
 
 **Query Parameters:**
+
 - `action`: Filter by action type
 - `resource`: Filter by resource type
 - `userId`: Filter by user
@@ -711,6 +745,7 @@ View access logs (Owner/Admin only).
 - `endDate`: Filter to date
 
 **Response:**
+
 ```json
 {
     "data": [
@@ -737,6 +772,7 @@ View access logs (Owner/Admin only).
 ## Frontend Features
 
 ### Authentication UI
+
 - **Login form** with email/password validation
 - **Demo credentials** displayed for easy testing
 - **Auto-redirect** based on authentication status
@@ -748,7 +784,6 @@ View access logs (Owner/Admin only).
   - Create top-level organizations (sites) from the orgs page.
   - First member is automatically granted **Owner** role for that organization.
   - After creating an org, the frontend refreshes the auth profile so org-scoped roles and memberships are immediately available.
-
 - **Organization management (sites & spaces)**
   - Dedicated **Manage** view for each organization, structured into tabs:
     - **Organization**: rename or delete the current org (owner only).
@@ -756,7 +791,6 @@ View access logs (Owner/Admin only).
     - **Members**: view and manage members per org (site or space), including role updates where allowed.
     - **Invitations**: invite new users into a specific org and view pending invitations.
   - Behavior is **org-scoped**: all actions (members, invitations, spaces) are evaluated per organization id, not globally.
-
 - **Organization-scoped roles**
   - Effective role per organization is derived from memberships and parent/child hierarchy:
     - **Owner** and **Admin** on a parent site are inherited by its spaces.
@@ -764,7 +798,6 @@ View access logs (Owner/Admin only).
   - Frontend guards and permissions (e.g. manage tab, spaces tab, members actions) use these effective roles:
     - Site admins/owners can manage spaces.
     - Child-only admins can manage **members and invitations** for their space, but cannot create/delete spaces.
-
 - **Members & invitations**
   - **Members tab**:
     - View members for a selected org (site or space).
@@ -774,7 +807,6 @@ View access logs (Owner/Admin only).
     - Send invitations scoped to a specific org (site or space).
     - See pending invitations per org, with role and expiry information.
   - After invites are accepted or memberships change, the frontend uses an **auth refresh** endpoint so org roles and memberships stay in sync.
-
 - **Registration & login flows**
   - **Registration**:
     - Standard sign-up creates a user and immediately returns a JWT plus a profile containing org roles and memberships.
@@ -782,20 +814,17 @@ View access logs (Owner/Admin only).
   - **Login**:
     - On successful login, the frontend stores the JWT and user profile, including `org_roles` and `memberships`, used throughout the app for permission checks.
     - Demo credentials are provided for Owner/Admin/Viewer flows.
-
 - **Role revocation & org context**
   - When a user revokes their own membership from an org (or an org is deleted), the frontend:
     - Refreshes the auth profile to drop roles and memberships for that org.
     - Clears the current org context and returns the user to the orgs page.
   - All task and manage pages listen to current org changes so they automatically react to org selection and revocation.
-
 - **Task Management Dashboard**
   - **Kanban board** with drag-and-drop between columns (TODO, IN_PROGRESS, DONE)
   - **Task cards** with priority indicators and due dates
   - **Real-time filtering** by status, priority, category
   - **Search functionality** across title and description
   - **Responsive design** from mobile to desktop
-
 - **Drag-and-drop** reordering using Angular CDK
 - **Task creation/editing** with modal forms
 - **Task completion visualization** with statistics
@@ -803,12 +832,14 @@ View access logs (Owner/Admin only).
 - **Mobile-responsive** design with TailwindCSS
 
 ### State Management
+
 - **RxJS Observables** for reactive data flow
 - **HTTP interceptors** for automatic JWT token attachment
 - **Route guards** for authentication protection
 - **Local storage** for token persistence
 
 ### UI/UX Features
+
 - **Loading states** with spinners
 - **Error messages** with contextual feedback
 - **Toast notifications** for actions
@@ -818,6 +849,7 @@ View access logs (Owner/Admin only).
 ## ⚙️ Setup Instructions
 
 ### Prerequisites
+
 - Node.js 18+ 
 - PostgreSQL 12+
 - Git
@@ -852,29 +884,31 @@ MAILTRAP_SMTP_PASS=9b49ca1d6e681a
 ### Database Setup
 
 1. **Install PostgreSQL** and create database:
+
 ```sql
 createdb secure_task_management
 ```
 
-2. **Database will auto-create tables** on first run (TypeORM synchronize in development)
-
-3. **Seed data** is automatically loaded including demo users and demo parent org(sites) and its Child org(space):
-   - **Owner**: owner@example.com / password123
-   - **Admin**: admin@example.com / password123  
-   - **Viewer**: viewer@example.com / password123
-   - **turbo vets** : parent org
-   - **default space**: child org
+1. **Database will auto-create tables** on first run (TypeORM synchronize in development)
+2. **Seed data** is automatically loaded including demo users and demo parent org(sites) and its Child org(space):
+  - **Owner**: [owner@example.com](mailto:owner@example.com) / password123
+  - **Admin**: [admin@example.com](mailto:admin@example.com) / password123  
+  - **Viewer**: [viewer@example.com](mailto:viewer@example.com) / password123
+  - **turbo vets** : parent org
+  - **default space**: child org
 
 ### Installation & Running
 
 1. **Clone and install dependencies:**
+
 ```bash
 git clone <repository-url>
 cd secure-task-management-system
 npm install
 ```
 
-2. **Start the backend (NestJS API):**
+1. **Start the backend (NestJS API):**
+
 ```bash
 # Development mode with auto-reload
 npm run api:dev
@@ -883,10 +917,12 @@ npm run api:dev
 npm run api:build
 npm run api:serve
 ```
-Backend runs on http://localhost:3000
-API documentation available at `http://localhost:3000/api`
 
-3. **Start the frontend (Angular Dashboard):**
+Backend runs on [http://localhost:3000](http://localhost:3000)
+API documentation available at `http://localhost:3000/api/docs` 
+
+1. **Start the frontend (Angular Dashboard):**
+
 ```bash
 # In a new terminal
 nx serve dashboard
@@ -894,12 +930,13 @@ nx serve dashboard
 # Or using npm script
 npm run start
 ```
-Frontend runs on http://localhost:4200
 
-4. **Access the application:**
-   - Open http://localhost:4200
-   - Login with demo credentials
-   - Start managing tasks!
+Frontend runs on [http://localhost:4200](http://localhost:4200)
+
+1. **Access the application:**
+  - Open [http://localhost:4200](http://localhost:4200)
+  - Login with demo credentials
+  - Start managing tasks!
 
 ### Development Commands
 
@@ -923,12 +960,14 @@ nx build-all
 ### Production Deployment
 
 1. **Build for production:**
+
 ```bash
 nx build api --prod
 nx build dashboard --prod
 ```
 
-2. **Environment variables for production:**
+1. **Environment variables for production:**
+
 ```bash
 NODE_ENV=production
 DATABASE_URL=postgresql://user:pass@host:port/dbname
@@ -940,25 +979,29 @@ MAILTRAP_SMTP_USER=
 MAILTRAP_SMTP_PASS=
 ```
 
-3. **Database migrations:**
+1. **Database migrations:**
+
 - Set `synchronize: false` in production
 - Use TypeORM migrations for schema changes
 
 ## 🧪 Testing Strategy
 
 ### Backend Testing
+
 - **Unit tests** with Jest for services, guards, and controllers
 - **Integration tests** for API endpoints
 - **RBAC logic testing** with different user roles
 - **Authentication flow testing** with JWT validation
 
-### Frontend Testing  
+### Frontend Testing
+
 - **Component tests** with Jest and Angular Testing Utilities
 - **Service tests** for HTTP calls and state management
 - **Guard tests** for authentication logic
 - **E2E tests** for user workflows (optional)
 
 ### Test Coverage
+
 ```bash
 # Run all tests
 npm test
@@ -972,19 +1015,23 @@ npm run test:coverage
 These ideas extend the current feature set (org hierarchy, org-scoped roles, tasks, audit logging) rather than introduce unrelated functionality.
 
 ### Org & Role Model
+
 - **Custom per‑org roles** on top of Owner/Admin/Viewer, with configurable permissions per organization.
 - **Time‑boxed delegation** (e.g. temporary Admin on a space for a sprint) with automatic expiry and audit.
 
 ### Performance & Caching
+
 - **Add caching using Redis** for:
   - Effective org roles per user (used by guards and task/org services).
   - Organization trees (sites + spaces) and membership summaries for faster navigation and Manage views.
 
 ### Task & Board Experience
+
 - **Configurable workflows per space** (custom columns and transitions, similar to Jira boards).
 - **Lightweight task relationships** (e.g. blocked‑by / relates‑to) to support cross‑space coordination.
 
 ### Security & Observability
+
 - **JWT refresh tokens** for rotating access tokens while keeping sessions alive securely.
 - **CSRF protection** for state‑changing browser requests (especially if cookies are used for auth).
 - **RBAC caching** (e.g. via Redis) so expensive permission checks are evaluated once and reused safely.
