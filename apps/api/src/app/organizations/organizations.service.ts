@@ -265,7 +265,7 @@ export class OrganizationsService {
     return this.toDto(saved, owner);
   }
 
-  async getMembers(orgId: string, userId: string) {
+  async getMembers(orgId: string, userId: string, search?: string) {
     const hasAccess = await this.effectiveRoleService.hasMinimumRole(
       userId,
       orgId,
@@ -273,7 +273,7 @@ export class OrganizationsService {
     );
     if (!hasAccess)
       throw new ForbiddenException('No access to this organization');
-    return this.membershipService.getEffectiveMembersForOrg(orgId);
+    return this.membershipService.getEffectiveMembersForOrg(orgId, search);
   }
 
   async revokeMembership(
@@ -281,25 +281,44 @@ export class OrganizationsService {
     targetUserId: string,
     currentUserId: string
   ): Promise<void> {
-    const hasAccess = await this.effectiveRoleService.hasMinimumRole(
+    const currentRole = await this.effectiveRoleService.getEffectiveRole(
       currentUserId,
-      orgId,
-      RoleType.ADMIN
+      orgId
     );
-    if (!hasAccess)
-      throw new ForbiddenException('Only admin or owner can revoke membership');
+    if (!currentRole)
+      throw new ForbiddenException('No access to this organization');
 
     const membership = await this.membershipRepository.findOne({
       where: { organizationId: orgId, userId: targetUserId },
     });
     if (!membership) throw new NotFoundException('Membership not found');
 
-    const currentRole = await this.effectiveRoleService.getEffectiveRole(
-      currentUserId,
-      orgId
-    );
-    if (currentRole === RoleType.ADMIN && membership.role === RoleType.OWNER)
-      throw new ForbiddenException('Admin cannot revoke owner');
+    const targetRole = membership.role;
+
+    // Viewer: can only revoke themselves
+    if (currentRole === RoleType.VIEWER) {
+      if (targetUserId !== currentUserId)
+        throw new ForbiddenException(
+          'Viewers can only revoke their own membership'
+        );
+      // allow: viewer revoking self
+    }
+    // Admin: can revoke only viewer or self; cannot revoke owner or another admin
+    else if (currentRole === RoleType.ADMIN) {
+      if (targetUserId !== currentUserId && targetRole !== RoleType.VIEWER)
+        throw new ForbiddenException(
+          'Admins cannot revoke the owner or another admin. You may revoke a viewer or yourself.'
+        );
+    }
+    // Owner: can revoke admin and viewer; cannot revoke another owner
+    else if (currentRole === RoleType.OWNER) {
+      if (targetRole === RoleType.OWNER)
+        throw new ForbiddenException(
+          'Owners cannot revoke another owner. You may revoke admins or viewers.'
+        );
+    } else {
+      throw new ForbiddenException('Insufficient role to revoke membership');
+    }
 
     await this.membershipRepository.remove(membership);
     await this.auditService.logAction(
@@ -309,7 +328,58 @@ export class OrganizationsService {
       {
         resourceId: membership.id,
         organizationId: orgId,
-        details: { orgId, targetUserId },
+        details: { orgId, targetUserId, previousRole: targetRole },
+        success: true,
+      }
+    );
+  }
+
+  /**
+   * Update a member's role. Only owner can update roles.
+   * Owner can set a member to admin or viewer. Owner cannot change another owner's role.
+   */
+  async updateMemberRole(
+    orgId: string,
+    targetUserId: string,
+    newRole: RoleType,
+    currentUserId: string
+  ): Promise<void> {
+    const currentRole = await this.effectiveRoleService.getEffectiveRole(
+      currentUserId,
+      orgId
+    );
+    if (currentRole !== RoleType.OWNER)
+      throw new ForbiddenException(
+        'Only the owner can update member roles. Admins and viewers cannot change roles.'
+      );
+
+    if (newRole !== RoleType.ADMIN && newRole !== RoleType.VIEWER)
+      throw new BadRequestException(
+        'An organization can only have one owner. Role can only be set to admin or viewer. You cannot update a member to owner.'
+      );
+
+    const membership = await this.membershipRepository.findOne({
+      where: { organizationId: orgId, userId: targetUserId },
+    });
+    if (!membership) throw new NotFoundException('Membership not found');
+
+    if (membership.role === RoleType.OWNER)
+      throw new ForbiddenException(
+        "Cannot change an owner's role. Transfer ownership first if needed."
+      );
+
+    const previousRole = membership.role;
+    membership.role = newRole;
+    await this.membershipRepository.save(membership);
+
+    await this.auditService.logAction(
+      currentUserId,
+      AuditAction.ROLE_CHANGED,
+      AuditResource.MEMBERSHIP,
+      {
+        resourceId: membership.id,
+        organizationId: orgId,
+        details: { targetUserId, previousRole, newRole },
         success: true,
       }
     );

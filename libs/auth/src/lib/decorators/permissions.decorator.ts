@@ -18,7 +18,8 @@ export const RequirePermissions = (resource: string, ...actions: string[]) => {
 };
 
 /**
- * Common permission decorators for convenience
+ * Common permission decorators for convenience.
+ * Task access: every role with access has task:read and task:update (viewers may update own tasks only; scope enforced in service).
  */
 export const CanCreateTasks = () => SetMetadata('permissions', ['task:create']);
 export const CanReadTasks = () => SetMetadata('permissions', ['task:read']);

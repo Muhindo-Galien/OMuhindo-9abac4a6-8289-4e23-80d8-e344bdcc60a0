@@ -47,11 +47,12 @@ export class InvitationsService {
     dto: SendInvitationDto,
     userId: string
   ): Promise<{ token: string; expiresAt: Date; emailSent: boolean }> {
-    const hasAccess = await this.effectiveRoleService.hasMinimumRole(
+    const inviterRole = await this.effectiveRoleService.getEffectiveRole(
       userId,
-      dto.organizationId,
-      RoleType.ADMIN
+      dto.organizationId
     );
+    const hasAccess =
+      inviterRole === RoleType.ADMIN || inviterRole === RoleType.OWNER;
     if (!hasAccess)
       throw new ForbiddenException('Only admin or owner can invite');
 
@@ -60,6 +61,7 @@ export class InvitationsService {
     });
     if (!org) throw new NotFoundException('Organization not found');
 
+    // Do not send an invitation if this email is already part of the organization.
     const existingUser = await this.userRepository.findOne({
       where: { email: dto.email.toLowerCase() },
     });
@@ -72,7 +74,25 @@ export class InvitationsService {
       });
       if (existingMembership)
         throw new BadRequestException(
-          'User is already a member of this organization'
+          'This user is already part of the organization. No invitation sent.'
+        );
+    }
+
+    // An organization can only have one owner. Admins cannot send owner invitations.
+    if (dto.role === RoleType.OWNER) {
+      if (inviterRole === RoleType.ADMIN)
+        throw new ForbiddenException(
+          'Admins cannot send owner invitations. Only the owner can invite as owner.'
+        );
+      const ownerCount = await this.membershipRepository.count({
+        where: {
+          organizationId: dto.organizationId,
+          role: RoleType.OWNER,
+        },
+      });
+      if (ownerCount >= 1)
+        throw new BadRequestException(
+          'This organization can only have one owner. It already has an owner. Owner invitations are not allowed.'
         );
     }
 
@@ -126,17 +146,25 @@ export class InvitationsService {
     organizationName: string;
     role: RoleType;
     organizationId: string;
+    userExists: boolean;
   } | null> {
     const inv = await this.invitationRepository.findOne({
       where: { token, status: InvitationStatus.PENDING },
       relations: ['organization'],
     });
     if (!inv || new Date() > inv.expiresAt) return null;
+
+    const userExists = !!(await this.userRepository.findOne({
+      where: { email: inv.email.toLowerCase() },
+      select: ['id'],
+    }));
+
     return {
       email: inv.email,
       organizationName: inv.organization.name,
       role: inv.role,
       organizationId: inv.organizationId,
+      userExists,
     };
   }
 
@@ -167,6 +195,20 @@ export class InvitationsService {
       inv.status = InvitationStatus.ACCEPTED;
       await this.invitationRepository.save(inv);
       return { alreadyMember: true };
+    }
+
+    // An organization can only have one owner. Reject accepting owner invite if org already has an owner.
+    if (inv.role === RoleType.OWNER) {
+      const ownerCount = await this.membershipRepository.count({
+        where: {
+          organizationId: inv.organizationId,
+          role: RoleType.OWNER,
+        },
+      });
+      if (ownerCount >= 1)
+        throw new BadRequestException(
+          'This organization already has an owner. Only one owner is allowed. This invitation cannot be accepted.'
+        );
     }
 
     const membership = this.membershipRepository.create({
@@ -216,5 +258,47 @@ export class InvitationsService {
       invitedBy: inv.invitedBy?.email,
       createdAt: inv.createdAt,
     }));
+  }
+
+  /**
+   * Pending invitations sent to the current user's email.
+   * Used on the org list page so the user can accept without using the email link.
+   */
+  async listPendingForUser(userId: string): Promise<
+    Array<{
+      id: string;
+      token: string;
+      organizationId: string;
+      organizationName: string;
+      role: RoleType;
+      expiresAt: Date;
+    }>
+  > {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      select: ['email'],
+    });
+    if (!user) return [];
+
+    const now = new Date();
+    const list = await this.invitationRepository.find({
+      where: {
+        email: user.email.toLowerCase(),
+        status: InvitationStatus.PENDING,
+      },
+      relations: ['organization'],
+      order: { createdAt: 'DESC' },
+    });
+
+    return list
+      .filter(inv => inv.expiresAt > now)
+      .map(inv => ({
+        id: inv.id,
+        token: inv.token,
+        organizationId: inv.organizationId,
+        organizationName: inv.organization?.name ?? 'Organization',
+        role: inv.role,
+        expiresAt: inv.expiresAt,
+      }));
   }
 }

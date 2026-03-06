@@ -1,8 +1,10 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { OrgContextService } from '../services/org-context.service';
 import { AuthService } from '../services/auth.service';
+import { TaskService } from '../services/task.service';
 import { RoleType, isChildOrg as isChildOrgUtil } from '@data';
 
 /**
@@ -31,42 +33,80 @@ import { RoleType, isChildOrg as isChildOrgUtil } from '@data';
           <h1 class="text-lg font-semibold text-gray-500">Select a space</h1>
         </div>
         }
-        <!-- Tabs: Board, List, Audit Logs -->
-        <nav class="flex gap-1 -mb-px">
-          <a
-            routerLink="/app/tasks/board"
-            routerLinkActive="bg-turbovets-sky-light text-turbovets-navy border-b-2 border-turbovets-navy"
-            [routerLinkActiveOptions]="{ exact: false }"
-            class="px-4 py-3 text-sm font-medium rounded-t-lg text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
-          >
-            Board
-          </a>
-          <a
-            routerLink="/app/tasks/list"
-            routerLinkActive="bg-turbovets-sky-light text-turbovets-navy border-b-2 border-turbovets-navy"
-            [routerLinkActiveOptions]="{ exact: true }"
-            class="px-4 py-3 text-sm font-medium rounded-t-lg text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
-          >
-            List
-          </a>
-          @if (canViewAuditLogs()) {
-          <a
-            routerLink="/app/audit-logs"
-            routerLinkActive="bg-turbovets-sky-light text-turbovets-navy border-b-2 border-turbovets-navy"
-            [routerLinkActiveOptions]="{ exact: true }"
-            class="px-4 py-3 text-sm font-medium rounded-t-lg text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
-          >
-            Audit Logs
-          </a>
+        <!-- Tabs: Board, List, Audit Logs, Manage + total work items on the right -->
+        <div class="flex items-center justify-between gap-4 -mb-px">
+          <nav class="flex gap-1">
+            <a
+              routerLink="/app/tasks/board"
+              routerLinkActive="bg-turbovets-sky-light text-turbovets-navy border-b-2 border-turbovets-navy"
+              [routerLinkActiveOptions]="{ exact: false }"
+              class="px-4 py-3 text-sm font-medium rounded-t-lg text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+            >
+              Board
+            </a>
+            <a
+              routerLink="/app/tasks/list"
+              routerLinkActive="bg-turbovets-sky-light text-turbovets-navy border-b-2 border-turbovets-navy"
+              [routerLinkActiveOptions]="{ exact: true }"
+              class="px-4 py-3 text-sm font-medium rounded-t-lg text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+            >
+              List
+            </a>
+            @if (canViewAuditLogs()) {
+            <a
+              routerLink="/app/audit-logs"
+              routerLinkActive="bg-turbovets-sky-light text-turbovets-navy border-b-2 border-turbovets-navy"
+              [routerLinkActiveOptions]="{ exact: true }"
+              class="px-4 py-3 text-sm font-medium rounded-t-lg text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+            >
+              Audit Logs
+            </a>
+            } @if (canCreateChild()) {
+            <a
+              routerLink="/app/manage"
+              routerLinkActive="bg-turbovets-sky-light text-turbovets-navy border-b-2 border-turbovets-navy"
+              [routerLinkActiveOptions]="{ exact: true }"
+              class="px-4 py-3 text-sm font-medium rounded-t-lg text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+            >
+              Manage
+            </a>
+            }
+          </nav>
+          @if (isChildOrg() && taskCount !== null) {
+          <span class="text-sm font-medium text-gray-500 pb-3">
+            {{ taskCount }} work item{{ taskCount === 1 ? '' : 's' }}
+          </span>
           }
-        </nav>
+        </div>
       </div>
     </div>
   `,
 })
-export class ContentBarComponent {
+export class ContentBarComponent implements OnInit {
   private orgContext = inject(OrgContextService);
   private authService = inject(AuthService);
+  private taskService = inject(TaskService);
+  private destroyRef = inject(DestroyRef);
+
+  taskCount: number | null = null;
+
+  ngOnInit(): void {
+    this.loadTaskCount();
+    this.orgContext.currentOrg$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.loadTaskCount());
+  }
+
+  private loadTaskCount(): void {
+    if (!this.isChildOrg()) {
+      this.taskCount = null;
+      return;
+    }
+    this.taskService.getTasks().subscribe({
+      next: tasks => (this.taskCount = tasks.length),
+      error: () => (this.taskCount = 0),
+    });
+  }
 
   /** True when current org is a child (space), not a parent. Uses shared @data helper. */
   isChildOrg(): boolean {
@@ -90,7 +130,18 @@ export class ContentBarComponent {
     const user = this.authService.getCurrentUser();
     const role =
       user?.org_roles?.[orgId] ??
-      user?.memberships?.find((m) => m.organizationId === orgId)?.role;
+      user?.memberships?.find(m => m.organizationId === orgId)?.role;
+    return role === RoleType.ADMIN || role === RoleType.OWNER;
+  }
+
+  /** Same as sidebar: show Manage tab only if user can manage spaces (admin/owner on site). */
+  canCreateChild(): boolean {
+    const parentId = this.orgContext.getEffectiveParentId();
+    if (!parentId) return false;
+    const user = this.authService.getCurrentUser();
+    const role =
+      user?.org_roles?.[parentId] ??
+      user?.memberships?.find(m => m.organizationId === parentId)?.role;
     return role === RoleType.ADMIN || role === RoleType.OWNER;
   }
 }

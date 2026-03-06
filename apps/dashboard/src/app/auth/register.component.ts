@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   ReactiveFormsModule,
@@ -8,6 +8,7 @@ import {
 } from '@angular/forms';
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
+import { InvitationService } from '../services/invitation.service';
 
 @Component({
   selector: 'app-register',
@@ -20,11 +21,28 @@ import { AuthService } from '../services/auth.service';
       <div class="max-w-md w-full space-y-8">
         <div class="text-center">
           <h2 class="mt-6 text-3xl font-bold text-gray-900">
-            Create your account
+            {{
+              inviteContext()
+                ? 'Join ' + inviteContext()!.organizationName
+                : 'Create your account'
+            }}
           </h2>
-          <p class="mt-2 text-sm text-gray-600">Task Management System</p>
+          <p class="mt-2 text-sm text-gray-600">
+            @if (inviteContext()) { Create your account to join as
+            <strong>{{ inviteContext()!.role }}</strong
+            >. Your email is set from the invitation. } @else { Task Management
+            System }
+          </p>
         </div>
 
+        @if (validatingToken) {
+        <div class="text-center py-8">
+          <div
+            class="animate-spin rounded-full h-8 w-8 border-2 border-turbovets-navy border-t-transparent mx-auto"
+          ></div>
+          <p class="mt-3 text-sm text-gray-600">Checking invitation…</p>
+        </div>
+        } @else {
         <form
           [formGroup]="registerForm"
           (ngSubmit)="onSubmit()"
@@ -41,7 +59,12 @@ import { AuthService } from '../services/auth.service';
                 id="email"
                 type="email"
                 formControlName="email"
-                class="relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
+                [readonly]="!!inviteContext()"
+                class="relative block w-full px-3 py-2 border placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
+                [class.border-gray-300]="!inviteContext()"
+                [class.border-gray-200]="inviteContext()"
+                [class.bg-gray-50]="inviteContext()"
+                [class.text-gray-600]="inviteContext()"
                 placeholder="you&#64;example.com"
                 [class.border-red-500]="
                   registerForm.get('email')?.invalid &&
@@ -139,7 +162,6 @@ import { AuthService } from '../services/auth.service';
               </div>
               }
             </div>
-
           </div>
 
           @if (errorMessage) {
@@ -196,19 +218,25 @@ import { AuthService } from '../services/auth.service';
             </a>
           </p>
         </form>
+        }
       </div>
     </div>
   `,
 })
-export class RegisterComponent {
+export class RegisterComponent implements OnInit {
   private fb = inject(FormBuilder);
   private authService = inject(AuthService);
+  private invitationService = inject(InvitationService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
 
   registerForm: FormGroup;
   isLoading = false;
+  validatingToken = false;
   errorMessage = '';
+  inviteContext = signal<{ organizationName: string; role: string } | null>(
+    null
+  );
 
   constructor() {
     this.registerForm = this.fb.group({
@@ -230,6 +258,28 @@ export class RegisterComponent {
           Validators.maxLength(100),
         ],
       ],
+    });
+  }
+
+  ngOnInit(): void {
+    const token = this.route.snapshot.queryParamMap.get('token');
+    if (!token?.trim()) return;
+
+    this.validatingToken = true;
+    this.invitationService.validateToken(token).subscribe({
+      next: result => {
+        this.validatingToken = false;
+        if (result) {
+          this.registerForm.patchValue({ email: result.email });
+          this.inviteContext.set({
+            organizationName: result.organizationName,
+            role: result.role,
+          });
+        }
+      },
+      error: () => {
+        this.validatingToken = false;
+      },
     });
   }
 

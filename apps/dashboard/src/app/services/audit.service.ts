@@ -6,6 +6,7 @@ import { AuditLogResponseDto, PaginatedResponse } from '@data';
 import { environment } from '../../environments/environment';
 
 export interface AuditLogQueryParams {
+  organizationId: string;
   page?: number;
   limit?: number;
   action?: string;
@@ -22,14 +23,17 @@ export class AuditService {
   private readonly API_URL = environment.apiUrl;
 
   /**
-   * Get audit logs with optional filtering and pagination
+   * Get audit logs with optional filtering and pagination.
+   * organizationId is required by the API (only admin/owner of that org can view).
    */
-  async getAuditLogs(queryParams: AuditLogQueryParams = {}): Promise<PaginatedResponse<AuditLogResponseDto>> {
+  async getAuditLogs(queryParams: AuditLogQueryParams): Promise<PaginatedResponse<AuditLogResponseDto>> {
+    if (!queryParams.organizationId) {
+      return Promise.reject(new Error('organizationId is required'));
+    }
     console.log('AuditService: Getting audit logs with params:', queryParams);
 
     try {
-      // Build HTTP params
-      let params = new HttpParams();
+      let params = new HttpParams().set('organizationId', queryParams.organizationId);
       if (queryParams.page) params = params.set('page', queryParams.page.toString());
       if (queryParams.limit) params = params.set('limit', queryParams.limit.toString());
       if (queryParams.action) params = params.set('action', queryParams.action);

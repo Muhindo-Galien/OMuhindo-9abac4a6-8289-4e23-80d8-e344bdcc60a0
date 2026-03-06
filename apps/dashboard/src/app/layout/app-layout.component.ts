@@ -1,6 +1,6 @@
 import { Component, inject, signal, viewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterOutlet } from '@angular/router';
+import { Router, RouterOutlet, NavigationEnd } from '@angular/router';
 import { AppHeaderComponent } from './app-header.component';
 import { AppSidebarComponent } from './app-sidebar.component';
 import { ContentBarComponent } from './content-bar.component';
@@ -8,7 +8,7 @@ import { CreateOrgModalComponent, CreateOrgFormValue } from '../orgs/create-org-
 import { AuthService } from '../services/auth.service';
 import { OrgContextService } from '../services/org-context.service';
 import { OrganizationService } from '../services/organization.service';
-import { map } from 'rxjs/operators';
+import { map, filter, startWith } from 'rxjs';
 import { isChildOrg } from '@data';
 
 /**
@@ -36,13 +36,19 @@ import { isChildOrg } from '@data';
         (logoutClick)="onLogout()"
       ></app-app-header>
       <div class="flex flex-1 overflow-hidden">
-        <app-app-sidebar
-          [mobileOpen]="mobileSidebarOpen()"
-          (close)="mobileSidebarOpen.set(false)"
-          (createClick)="openCreateChildModal()"
-        ></app-app-sidebar>
+        @if (!(isManagePage$ | async)) {
+          <app-app-sidebar
+            [mobileOpen]="mobileSidebarOpen()"
+            (close)="mobileSidebarOpen.set(false)"
+            (createClick)="openCreateChildModal()"
+          ></app-app-sidebar>
+        }
         <div class="flex-1 flex flex-col overflow-hidden min-w-0">
-          @if (hasSpaceSelected$ | async) {
+          @if (isManagePage$ | async) {
+            <main class="flex-1 overflow-auto min-w-0">
+              <router-outlet></router-outlet>
+            </main>
+          } @else if (hasSpaceSelected$ | async) {
             <app-content-bar></app-content-bar>
             <main class="flex-1 overflow-auto min-w-0">
               <router-outlet></router-outlet>
@@ -83,6 +89,13 @@ export class AppLayoutComponent {
   private orgContext = inject(OrgContextService);
   private orgService = inject(OrganizationService);
   private router = inject(Router);
+
+  /** True when current route is /app/manage — then we hide sidebar and content bar, show only outlet. */
+  isManagePage$ = this.router.events.pipe(
+    filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+    map(() => this.router.url.includes('/app/manage')),
+    startWith(this.router.url.includes('/app/manage'))
+  );
 
   /** True when a space (child org) is selected; then we show content bar + outlet. Uses shared @data isChildOrg. */
   hasSpaceSelected$ = this.orgContext.currentOrg$.pipe(

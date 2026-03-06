@@ -198,8 +198,9 @@ export class LoginComponent {
   errorMessage = '';
 
   constructor() {
+    const emailFromQuery = this.route.snapshot.queryParamMap.get('email') ?? '';
     this.loginForm = this.fb.group({
-      email: ['', [Validators.required, Validators.email]],
+      email: [emailFromQuery, [Validators.required, Validators.email]],
       password: ['', [Validators.required]],
     });
   }

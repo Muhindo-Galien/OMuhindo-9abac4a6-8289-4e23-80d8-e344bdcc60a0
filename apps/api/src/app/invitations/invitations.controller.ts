@@ -36,6 +36,11 @@ export class InvitationsController {
     return this.invitationsService.validateToken(token);
   }
 
+  @Get('me')
+  async listMyPending(@CurrentUser() user: { id: string }) {
+    return this.invitationsService.listPendingForUser(user.id);
+  }
+
   @Post('accept')
   @HttpCode(HttpStatus.OK)
   async accept(

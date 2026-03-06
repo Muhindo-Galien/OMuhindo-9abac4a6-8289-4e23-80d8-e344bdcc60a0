@@ -69,9 +69,11 @@ export class OrganizationMembershipService {
   /**
    * Get effective members: direct members of this org plus members inherited from the parent (when this org is a child).
    * Direct role overrides inherited; each user appears once with their effective role and source.
+   * Optional search: filter by firstName, lastName, or email (case-insensitive).
    */
   async getEffectiveMembersForOrg(
-    orgId: string
+    orgId: string,
+    search?: string
   ): Promise<EffectiveOrgMemberSummary[]> {
     const org = await this.orgRepo.findOne({ where: { id: orgId } });
     if (!org) return [];
@@ -114,7 +116,23 @@ export class OrganizationMembershipService {
       }
     }
 
-    return Array.from(byUserId.values());
+    let list = Array.from(byUserId.values());
+    if (search && search.trim()) {
+      const term = search.trim().toLowerCase();
+      list = list.filter(
+        m =>
+          (m.firstName?.toLowerCase() ?? '').includes(term) ||
+          (m.lastName?.toLowerCase() ?? '').includes(term) ||
+          (m.email?.toLowerCase() ?? '').includes(term) ||
+          `${(m.firstName ?? '').toLowerCase()} ${(
+            m.lastName ?? ''
+          ).toLowerCase()}`.includes(term) ||
+          `${(m.lastName ?? '').toLowerCase()} ${(
+            m.firstName ?? ''
+          ).toLowerCase()}`.includes(term)
+      );
+    }
+    return list;
   }
 
   /** Get a user's direct role in an org (no inheritance). */
@@ -140,7 +158,9 @@ export class OrganizationMembershipService {
    * Inheritance: owner/admin/viewer on parent → same role on all children; direct child role overrides.
    * Used to enrich request.user.org_roles so OrgRoleGuard allows access to spaces when user has role on parent site.
    */
-  async getEffectiveOrgRolesForUser(userId: string): Promise<Record<string, RoleType>> {
+  async getEffectiveOrgRolesForUser(
+    userId: string
+  ): Promise<Record<string, RoleType>> {
     const direct = await this.getOrgRolesForUser(userId);
     const out = { ...direct };
     const parentIds = Object.keys(direct);

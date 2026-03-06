@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
@@ -42,14 +43,31 @@ export class AuthApplicationService {
 
   async register(registerDto: RegisterDto): Promise<AuthResponseDto> {
     const { email, password, firstName, lastName } = registerDto;
+    const trimmedToken = registerDto.inviteToken?.trim();
 
-    const existing = await this.userRepository.findOne({ where: { email } });
+    if (trimmedToken) {
+      const inv = await this.invitationRepository.findOne({
+        where: { token: trimmedToken, status: InvitationStatus.PENDING },
+      });
+      if (!inv) throw new BadRequestException('Invalid or expired invitation');
+      if (new Date() > inv.expiresAt)
+        throw new BadRequestException('Invitation has expired');
+      if (inv.email.toLowerCase() !== email.toLowerCase())
+        throw new BadRequestException(
+          'Registration email must match the email the invitation was sent to'
+        );
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const existing = await this.userRepository.findOne({
+      where: { email: normalizedEmail },
+    });
     if (existing)
       throw new ConflictException('User with this email already exists');
 
     const hashedPassword = await this.authService.hashPassword(password);
     const user = this.userRepository.create({
-      email,
+      email: normalizedEmail,
       password: hashedPassword,
       firstName,
       lastName,
@@ -97,7 +115,9 @@ export class AuthApplicationService {
       }
     }
 
-    const effectiveOrgRoles = await this.getEffectiveOrgRolesForUser(savedUser.id);
+    const effectiveOrgRoles = await this.getEffectiveOrgRolesForUser(
+      savedUser.id
+    );
     const memberships = await this.getMembershipsForUser(savedUser.id);
     const tokenResult = await this.authService.login(savedUser);
     const profile = this.toProfile(savedUser, effectiveOrgRoles, memberships);
@@ -181,7 +201,7 @@ export class AuthApplicationService {
       where: { userId },
       relations: ['organization'],
     });
-    return list.map((m) => ({
+    return list.map(m => ({
       organizationId: m.organizationId,
       organizationName: m.organization?.name,
       role: m.role as RoleType,

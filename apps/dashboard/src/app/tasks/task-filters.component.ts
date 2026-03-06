@@ -1,16 +1,31 @@
-import { Component, Output, EventEmitter, Input } from '@angular/core';
+import {
+  Component,
+  Output,
+  EventEmitter,
+  Input,
+  OnChanges,
+  SimpleChanges,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+
+export interface TaskFilterValues {
+  search?: string;
+  status?: string;
+  priority?: string;
+  category?: string;
+  sortBy?: string;
+  quickFilter?: string;
+}
 
 @Component({
   selector: 'app-task-filters',
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-      <!-- Search and Filters Header -->
-      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <!-- Search Input -->
+    <div class="task-filters-root">
+      @if (showSearch) {
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
         <div class="flex-1 max-w-md">
           <div class="relative">
             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -23,10 +38,9 @@ import { FormsModule } from '@angular/forms';
               [(ngModel)]="filters.search"
               (ngModelChange)="onFilterChange()"
               placeholder="Search tasks..."
-              class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+              class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
               [disabled]="isLoading"
             />
-            <!-- Clear Search Button -->
             <button
               *ngIf="filters.search"
               (click)="clearSearch()"
@@ -38,48 +52,62 @@ import { FormsModule } from '@angular/forms';
             </button>
           </div>
         </div>
-
-        <!-- Quick Filters -->
         <div class="flex flex-wrap gap-2">
+          @for (quickFilter of quickFilters; track quickFilter.value) {
+            <button
+              type="button"
+              (click)="applyQuickFilter(quickFilter.value)"
+              [class]="getQuickFilterClass(quickFilter.value)"
+              class="px-3 py-1.5 text-sm font-medium rounded-full transition-colors duration-200"
+            >
+              {{ quickFilter.label }}
+            </button>
+          }
+        </div>
+      </div>
+      }
+
+      @if (!showSearch) {
+      <div class="flex flex-wrap gap-2 mb-4">
+        @for (quickFilter of quickFilters; track quickFilter.value) {
           <button
-            *ngFor="let quickFilter of quickFilters"
+            type="button"
             (click)="applyQuickFilter(quickFilter.value)"
             [class]="getQuickFilterClass(quickFilter.value)"
             class="px-3 py-1.5 text-sm font-medium rounded-full transition-colors duration-200"
           >
             {{ quickFilter.label }}
           </button>
-        </div>
+        }
       </div>
+      }
 
-      <!-- Advanced Filters (Collapsible) -->
-      <div class="mt-4">
-        <button
-          (click)="showAdvancedFilters = !showAdvancedFilters"
-          class="flex items-center text-sm text-gray-600 hover:text-gray-900 transition-colors duration-200"
-        >
-          <svg 
-            [class.rotate-180]="showAdvancedFilters"
-            class="w-4 h-4 mr-1 transform transition-transform duration-200" 
-            fill="none" 
-            viewBox="0 0 24 24" 
-            stroke="currentColor"
+      <!-- Advanced filters: all visible, each row expandable -->
+      <div class="advanced-filters space-y-1">
+        <!-- Status -->
+        <div class="advanced-row border-b border-gray-100">
+          <button
+            type="button"
+            (click)="expanded.status = !expanded.status"
+            class="advanced-row-header"
           >
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-          </svg>
-          {{ showAdvancedFilters ? 'Hide' : 'Show' }} Advanced Filters
-        </button>
-
-        <!-- Advanced Filters Panel -->
-        <div *ngIf="showAdvancedFilters" class="mt-3 pt-3 border-t border-gray-200">
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <!-- Status Filter -->
-            <div>
-              <label class="block text-xs font-medium text-gray-700 mb-1">Status</label>
+            <svg
+              [class.rotate-180]="expanded.status"
+              class="w-4 h-4 flex-shrink-0 transition-transform"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+            <span class="text-sm font-medium text-gray-700">Status</span>
+          </button>
+          @if (expanded.status) {
+            <div class="advanced-row-content">
               <select
                 [(ngModel)]="filters.status"
                 (ngModelChange)="onFilterChange()"
-                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
                 [disabled]="isLoading"
               >
                 <option value="">All Statuses</option>
@@ -89,14 +117,33 @@ import { FormsModule } from '@angular/forms';
                 <option value="cancelled">Cancelled</option>
               </select>
             </div>
+          }
+        </div>
 
-            <!-- Priority Filter -->
-            <div>
-              <label class="block text-xs font-medium text-gray-700 mb-1">Priority</label>
+        <!-- Priority -->
+        <div class="advanced-row border-b border-gray-100">
+          <button
+            type="button"
+            (click)="expanded.priority = !expanded.priority"
+            class="advanced-row-header"
+          >
+            <svg
+              [class.rotate-180]="expanded.priority"
+              class="w-4 h-4 flex-shrink-0 transition-transform"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+            <span class="text-sm font-medium text-gray-700">Priority</span>
+          </button>
+          @if (expanded.priority) {
+            <div class="advanced-row-content">
               <select
                 [(ngModel)]="filters.priority"
                 (ngModelChange)="onFilterChange()"
-                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
                 [disabled]="isLoading"
               >
                 <option value="">All Priorities</option>
@@ -106,14 +153,33 @@ import { FormsModule } from '@angular/forms';
                 <option value="urgent">Urgent</option>
               </select>
             </div>
+          }
+        </div>
 
-            <!-- Category Filter -->
-            <div>
-              <label class="block text-xs font-medium text-gray-700 mb-1">Category</label>
+        <!-- Category -->
+        <div class="advanced-row border-b border-gray-100">
+          <button
+            type="button"
+            (click)="expanded.category = !expanded.category"
+            class="advanced-row-header"
+          >
+            <svg
+              [class.rotate-180]="expanded.category"
+              class="w-4 h-4 flex-shrink-0 transition-transform"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+            <span class="text-sm font-medium text-gray-700">Category</span>
+          </button>
+          @if (expanded.category) {
+            <div class="advanced-row-content">
               <select
                 [(ngModel)]="filters.category"
                 (ngModelChange)="onFilterChange()"
-                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
                 [disabled]="isLoading"
               >
                 <option value="">All Categories</option>
@@ -124,14 +190,33 @@ import { FormsModule } from '@angular/forms';
                 <option value="other">Other</option>
               </select>
             </div>
+          }
+        </div>
 
-            <!-- Sort By -->
-            <div>
-              <label class="block text-xs font-medium text-gray-700 mb-1">Sort By</label>
+        <!-- Sort By -->
+        <div class="advanced-row border-b border-gray-100">
+          <button
+            type="button"
+            (click)="expanded.sortBy = !expanded.sortBy"
+            class="advanced-row-header"
+          >
+            <svg
+              [class.rotate-180]="expanded.sortBy"
+              class="w-4 h-4 flex-shrink-0 transition-transform"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+            <span class="text-sm font-medium text-gray-700">Sort By</span>
+          </button>
+          @if (expanded.sortBy) {
+            <div class="advanced-row-content">
               <select
                 [(ngModel)]="filters.sortBy"
                 (ngModelChange)="onFilterChange()"
-                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
                 [disabled]="isLoading"
               >
                 <option value="createdAt">Created Date</option>
@@ -141,43 +226,64 @@ import { FormsModule } from '@angular/forms';
                 <option value="status">Status</option>
               </select>
             </div>
-          </div>
-
-          <!-- Clear All Filters -->
-          <div class="mt-4 flex justify-between items-center">
-            <div class="text-xs text-gray-500">
-              {{ getActiveFilterCount() }} filter(s) active
-            </div>
-            <button
-              (click)="clearAllFilters()"
-              class="text-sm text-primary-600 hover:text-primary-700 font-medium"
-              [disabled]="!hasActiveFilters()"
-            >
-              Clear All Filters
-            </button>
-          </div>
+          }
         </div>
+      </div>
+
+      <div class="mt-4 flex justify-between items-center">
+        <span class="text-xs text-gray-500">{{ getActiveFilterCount() }} filter(s) active</span>
+        <button
+          type="button"
+          (click)="clearAllFilters()"
+          class="text-sm text-primary-600 hover:text-primary-700 font-medium"
+          [disabled]="!hasActiveFilters()"
+        >
+          Clear All Filters
+        </button>
       </div>
     </div>
   `,
-  styles: [`
-    .rotate-180 {
-      transform: rotate(180deg);
-    }
-  `]
+  styles: [
+    `
+      .task-filters-root {
+        @apply bg-white rounded-lg border border-gray-200 p-4;
+      }
+      .advanced-filters {
+        @apply pt-2;
+      }
+      .advanced-row-header {
+        @apply w-full flex items-center gap-2 py-2 text-left hover:bg-gray-50 rounded;
+      }
+      .advanced-row-content {
+        @apply pb-3 pl-6;
+      }
+      .rotate-180 {
+        transform: rotate(180deg);
+      }
+    `,
+  ],
 })
-export class TaskFiltersComponent {
+export class TaskFiltersComponent implements OnChanges {
   @Input() isLoading = false;
-  @Output() filterChange = new EventEmitter<any>();
+  /** When false, search input is hidden (e.g. when search lives in the toolbar). */
+  @Input() showSearch = true;
+  /** Optional initial/current filter values from parent (e.g. when used in dropdown). */
+  @Input() filterValues: TaskFilterValues | null = null;
+  @Output() filterChange = new EventEmitter<TaskFilterValues & { quickFilter: string }>();
 
-  showAdvancedFilters = false;
+  expanded = {
+    status: true,
+    priority: true,
+    category: true,
+    sortBy: true,
+  };
 
-  filters = {
+  filters: TaskFilterValues & { search: string } = {
     search: '',
     status: '',
     priority: '',
     category: '',
-    sortBy: 'createdAt'
+    sortBy: 'createdAt',
   };
 
   quickFilters = [
@@ -185,15 +291,30 @@ export class TaskFiltersComponent {
     { label: 'My Tasks', value: 'my' },
     { label: 'Due Today', value: 'due-today' },
     { label: 'Overdue', value: 'overdue' },
-    { label: 'High Priority', value: 'high-priority' }
+    { label: 'High Priority', value: 'high-priority' },
   ];
 
   activeQuickFilter = 'all';
 
+  ngOnChanges(changes: SimpleChanges): void {
+    const v = changes['filterValues'];
+    if (v && v.currentValue) {
+      const f = v.currentValue as TaskFilterValues;
+      this.filters = {
+        search: f.search ?? '',
+        status: f.status ?? '',
+        priority: f.priority ?? '',
+        category: f.category ?? '',
+        sortBy: f.sortBy ?? 'createdAt',
+      };
+      if (f.quickFilter) this.activeQuickFilter = f.quickFilter;
+    }
+  }
+
   onFilterChange(): void {
     this.filterChange.emit({
       ...this.filters,
-      quickFilter: this.activeQuickFilter
+      quickFilter: this.activeQuickFilter,
     });
   }
 
@@ -204,24 +325,20 @@ export class TaskFiltersComponent {
 
   applyQuickFilter(filterValue: string): void {
     this.activeQuickFilter = filterValue;
-    
-    // Reset individual filters when applying quick filters
     if (filterValue !== 'all') {
-      this.clearAllFilters(false);
+      this.filters.status = '';
+      this.filters.priority = '';
+      this.filters.category = '';
     }
-    
     this.onFilterChange();
   }
 
   getQuickFilterClass(filterValue: string): string {
-    const baseClasses = 'px-3 py-1.5 text-sm font-medium rounded-full transition-colors duration-200';
     const isActive = this.activeQuickFilter === filterValue;
-    
     if (isActive) {
-      return `${baseClasses} bg-primary-100 text-primary-800 border border-primary-200`;
+      return 'bg-primary-100 text-primary-800 border border-primary-200';
     }
-    
-    return `${baseClasses} bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200`;
+    return 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200';
   }
 
   clearAllFilters(emitChange = true): void {
@@ -230,9 +347,8 @@ export class TaskFiltersComponent {
       status: '',
       priority: '',
       category: '',
-      sortBy: 'createdAt'
+      sortBy: 'createdAt',
     };
-    
     if (emitChange) {
       this.activeQuickFilter = 'all';
       this.onFilterChange();
@@ -258,4 +374,4 @@ export class TaskFiltersComponent {
     if (this.activeQuickFilter !== 'all') count++;
     return count;
   }
-} 
+}

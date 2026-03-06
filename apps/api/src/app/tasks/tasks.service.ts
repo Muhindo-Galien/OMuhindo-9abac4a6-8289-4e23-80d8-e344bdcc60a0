@@ -106,17 +106,43 @@ export class TasksService {
     queryDto: TaskQueryDto,
     currentUser: { id: string }
   ): Promise<TaskResponseDto[]> {
-    const orgIds = await this.getAccessibleOrgIds(currentUser.id);
-    if (orgIds.length === 0) return [];
+    const { viewerOrgIds, fullAccessOrgIds } =
+      await this.getAccessibleOrgIdsForTasks(currentUser.id);
+    const hasViewerOrgs = viewerOrgIds.length > 0;
+    const hasFullAccessOrgs = fullAccessOrgIds.length > 0;
+    if (!hasViewerOrgs && !hasFullAccessOrgs) return [];
 
     const queryBuilder = this.taskRepository
       .createQueryBuilder('task')
       .leftJoinAndSelect('task.owner', 'owner')
-      .leftJoinAndSelect('task.organization', 'organization')
-      .where('task.organizationId IN (:...orgIds)', { orgIds });
+      .leftJoinAndSelect('task.organization', 'organization');
+
+    // Viewers see only their own tasks in viewer orgs; admin/owner see all tasks in their orgs.
+    if (hasViewerOrgs && hasFullAccessOrgs) {
+      queryBuilder.andWhere(
+        '(task.organizationId IN (:...viewerOrgIds) AND task.ownerId = :userId) OR (task.organizationId IN (:...fullAccessOrgIds))',
+        {
+          viewerOrgIds,
+          fullAccessOrgIds,
+          userId: currentUser.id,
+        }
+      );
+    } else if (hasViewerOrgs) {
+      queryBuilder.andWhere('task.organizationId IN (:...viewerOrgIds)', {
+        viewerOrgIds,
+      });
+      queryBuilder.andWhere('task.ownerId = :userId', {
+        userId: currentUser.id,
+      });
+    } else {
+      queryBuilder.andWhere('task.organizationId IN (:...fullAccessOrgIds)', {
+        fullAccessOrgIds,
+      });
+    }
 
     if (queryDto.organizationId) {
-      if (!orgIds.includes(queryDto.organizationId))
+      const allowed = [...viewerOrgIds, ...fullAccessOrgIds];
+      if (!allowed.includes(queryDto.organizationId))
         throw new ForbiddenException('No access to this organization');
       queryBuilder.andWhere('task.organizationId = :orgId', {
         orgId: queryDto.organizationId,
@@ -169,6 +195,10 @@ export class TasksService {
     );
     if (!effective) throw new ForbiddenException('Access denied to this task');
 
+    // Viewers can only view their own tasks; admin/owner can view any task in the space.
+    if (effective === RoleType.VIEWER && task.ownerId !== currentUser.id)
+      throw new ForbiddenException('Access denied to this task');
+
     return this.mapToResponseDto(task);
   }
 
@@ -190,10 +220,8 @@ export class TasksService {
     );
     if (!effective) throw new ForbiddenException('Access denied to this task');
 
-    const level = getRoleLevel(effective);
-    const canUpdateAny = level >= getRoleLevel(RoleType.ADMIN);
-    const canUpdateOwn = task.ownerId === currentUser.id;
-    if (!canUpdateAny && !canUpdateOwn)
+    // Viewers may update only their own tasks; admin/owner may update any task in the space.
+    if (effective === RoleType.VIEWER && task.ownerId !== currentUser.id)
       throw new ForbiddenException(
         'You do not have permission to update this task'
       );
@@ -293,11 +321,10 @@ export class TasksService {
         task.organizationId
       );
       if (!effective) continue;
-      const level = getRoleLevel(effective);
-      const canUpdate =
-        level >= getRoleLevel(RoleType.ADMIN) ||
-        task.ownerId === currentUser.id;
-      if (!canUpdate) continue;
+
+      // Viewers may only bulk-update their own tasks; admin/owner may update any.
+      if (effective === RoleType.VIEWER && task.ownerId !== currentUser.id)
+        continue;
 
       if (update.sortOrder !== undefined) task.sortOrder = update.sortOrder;
       if (update.status) task.status = update.status;
@@ -307,22 +334,35 @@ export class TasksService {
     return result;
   }
 
-  /** Org ids where user has access and which are spaces (child orgs). Tasks are only in spaces. */
-  private async getAccessibleOrgIds(userId: string): Promise<string[]> {
+  /** Org ids where user has access and which are spaces (child orgs). Returns partition: viewer-only orgs vs admin/owner orgs (viewers see only own tasks in viewer orgs). */
+  private async getAccessibleOrgIdsForTasks(userId: string): Promise<{
+    viewerOrgIds: string[];
+    fullAccessOrgIds: string[];
+  }> {
     const orgs = await this.organizationRepository.find({
       where: {},
       select: ['id', 'parentId'],
     });
-    const ids: string[] = [];
+    const viewerOrgIds: string[] = [];
+    const fullAccessOrgIds: string[] = [];
     for (const org of orgs) {
-      if (!isChildOrg(org)) continue; // only spaces (child orgs), not sites (parents)
+      if (!isChildOrg(org)) continue;
       const role = await this.effectiveRoleService.getEffectiveRole(
         userId,
         org.id
       );
-      if (role) ids.push(org.id);
+      if (!role) continue;
+      if (role === RoleType.VIEWER) viewerOrgIds.push(org.id);
+      else fullAccessOrgIds.push(org.id); // ADMIN or OWNER
     }
-    return ids;
+    return { viewerOrgIds, fullAccessOrgIds };
+  }
+
+  /** Org ids where user has access and which are spaces (child orgs). Tasks are only in spaces. */
+  private async getAccessibleOrgIds(userId: string): Promise<string[]> {
+    const { viewerOrgIds, fullAccessOrgIds } =
+      await this.getAccessibleOrgIdsForTasks(userId);
+    return [...viewerOrgIds, ...fullAccessOrgIds];
   }
 
   /**
@@ -341,8 +381,7 @@ export class TasksService {
       where: { id: organizationId },
       select: ['id', 'parentId'],
     });
-    if (!loaded)
-      throw new NotFoundException('Organization not found');
+    if (!loaded) throw new NotFoundException('Organization not found');
     if (isParentOrg(loaded))
       throw new ForbiddenException(TASKS_REQUIRE_SPACE_MESSAGE);
   }
@@ -376,10 +415,28 @@ export class TasksService {
         'Assigned user must be a member of this organization'
       );
 
+    // Admin cannot assign (or reassign) a task to the org owner; only to other admins or viewers.
+    const currentRole = await this.effectiveRoleService.getEffectiveRole(
+      currentUserId,
+      organizationId
+    );
+    if (currentRole === RoleType.ADMIN && ownerInOrg === RoleType.OWNER)
+      throw new ForbiddenException(
+        'Admins cannot assign tasks to the organization owner'
+      );
+
     return proposed;
   }
 
   private mapToResponseDto(task: Task): TaskResponseDto {
+    const owner = task.owner
+      ? {
+          id: task.owner.id,
+          email: task.owner.email,
+          firstName: task.owner.firstName,
+          lastName: task.owner.lastName,
+        }
+      : undefined;
     return {
       id: task.id,
       title: task.title,
@@ -391,12 +448,7 @@ export class TasksService {
       completedAt: task.completedAt,
       sortOrder: task.sortOrder,
       ownerId: task.ownerId,
-      owner: {
-        id: task.owner.id,
-        email: task.owner.email,
-        firstName: task.owner.firstName,
-        lastName: task.owner.lastName,
-      },
+      owner,
       organizationId: task.organizationId,
       organization: {
         id: task.organization.id,

@@ -143,7 +143,6 @@ export class AuditService {
       action: log.action,
       resource: log.resource,
       resourceId: log.resourceId,
-      details: log.details,
       ipAddress: log.ipAddress,
       userAgent: log.userAgent,
       timestamp: log.timestamp,

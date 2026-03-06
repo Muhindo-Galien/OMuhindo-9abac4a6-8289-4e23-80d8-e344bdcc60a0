@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -15,6 +16,7 @@ import {
   CreateOrganizationDto,
   UpdateOrganizationDto,
   OrganizationResponseDto,
+  UpdateMemberRoleDto,
   UserProfile,
   RoleType,
 } from '@data';
@@ -22,7 +24,6 @@ import { JwtAuthGuard, CurrentUser, OrgRoles, OrgRoleGuard } from '@auth';
 import { OrganizationsService } from './organizations.service';
 import { AuthApplicationService } from '../auth/auth.service';
 import { EnrichOrgRolesGuard } from './enrich-org-roles.guard';
-
 
 export interface CreateOrganizationResponse {
   organization: OrganizationResponseDto;
@@ -86,14 +87,15 @@ export class OrganizationsController {
   @OrgRoles(RoleType.VIEWER, RoleType.ADMIN, RoleType.OWNER)
   async getMembers(
     @Param('orgId') orgId: string,
-    @CurrentUser() user: { id: string }
+    @CurrentUser() user: { id: string },
+    @Query('search') search?: string
   ) {
-    return this.organizationsService.getMembers(orgId, user.id);
+    return this.organizationsService.getMembers(orgId, user.id, search);
   }
 
   @Delete(':orgId/members/:userId')
   @UseGuards(OrgRoleGuard)
-  @OrgRoles(RoleType.ADMIN, RoleType.OWNER)
+  @OrgRoles(RoleType.VIEWER, RoleType.ADMIN, RoleType.OWNER)
   @HttpCode(HttpStatus.NO_CONTENT)
   async revokeMember(
     @Param('orgId') orgId: string,
@@ -105,6 +107,25 @@ export class OrganizationsController {
       targetUserId,
       user.id
     );
+  }
+
+  @Put(':orgId/members/:userId/role')
+  @UseGuards(OrgRoleGuard)
+  @OrgRoles(RoleType.OWNER)
+  @HttpCode(HttpStatus.OK)
+  async updateMemberRole(
+    @Param('orgId') orgId: string,
+    @Param('userId') userId: string,
+    @Body() body: UpdateMemberRoleDto,
+    @CurrentUser() user: { id: string }
+  ): Promise<{ role: RoleType }> {
+    await this.organizationsService.updateMemberRole(
+      orgId,
+      userId,
+      body.role,
+      user.id
+    );
+    return { role: body.role };
   }
 
   @Get(':orgId')

@@ -47,6 +47,7 @@ import { InitialsAvatarComponent } from '../shared/components/initials-avatar.co
               class="text-xs font-semibold text-gray-500 uppercase tracking-wider"
               >Spaces</span
             >
+           
             <div class="flex items-center gap-0.5">
               <button
                 type="button"
@@ -70,12 +71,14 @@ import { InitialsAvatarComponent } from '../shared/components/initials-avatar.co
                 </svg>
               </button>
             </div>
+            
           </div>
           <!-- Expand-down menu (inline, not overlay) -->
           @if (spacesMenuOpen()) {
           <div class="border-t border-gray-100 bg-gray-50/80 py-1" role="menu">
+            @if (canCreateChild()) {
             <a
-              routerLink="/orgs"
+              routerLink="/app/manage"
               (click)="spacesMenuOpen.set(false); close.emit()"
               class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded mx-1"
               role="menuitem"
@@ -95,7 +98,6 @@ import { InitialsAvatarComponent } from '../shared/components/initials-avatar.co
               </svg>
               Manage spaces
             </a>
-            @if (canCreateChild()) {
             <button
               type="button"
               (click)="
@@ -163,27 +165,6 @@ import { InitialsAvatarComponent } from '../shared/components/initials-avatar.co
           </ul>
           }
         </div>
-
-        <a
-          routerLink="/orgs"
-          (click)="close.emit()"
-          class="flex items-center gap-2 px-3 py-2.5 mt-auto border-t border-gray-100 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg"
-        >
-          <svg
-            class="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M4 6h16M4 12h16M4 18h16"
-            />
-          </svg>
-          More spaces
-        </a>
       </nav>
     </aside>
   `,
@@ -266,7 +247,7 @@ export class AppSidebarComponent implements OnInit {
     const user = this.authService.getCurrentUser();
     const role =
       user?.org_roles?.[parentId] ??
-      user?.memberships?.find((m) => m.organizationId === parentId)?.role;
+      user?.memberships?.find(m => m.organizationId === parentId)?.role;
     return role === RoleType.ADMIN || role === RoleType.OWNER;
   }
 }

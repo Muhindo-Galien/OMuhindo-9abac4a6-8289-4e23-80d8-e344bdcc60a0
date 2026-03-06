@@ -64,6 +64,18 @@ export class AuthService {
       );
   }
 
+  /** Refresh JWT and user profile (e.g. after accepting an invitation). */
+  refresh(): Observable<AuthResponseDto> {
+    return this.http
+      .post<AuthResponseDto>(`${this.API_URL}/auth/refresh`, {})
+      .pipe(
+        tap((response) => {
+          this.setSession(response);
+        }),
+        catchError(this.handleError)
+      );
+  }
+
   logout(): void {
     this.clearSession();
   }

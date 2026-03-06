@@ -105,7 +105,8 @@ export class TaskResponseDto {
   completedAt?: Date;
   sortOrder: number;
   ownerId: string;
-  owner: {
+  /** Populated when owner user exists; undefined if user was deleted. */
+  owner?: {
     id: string;
     email: string;
     firstName: string;

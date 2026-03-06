@@ -2,9 +2,11 @@ import {
   IsString,
   IsOptional,
   IsUUID,
+  IsEnum,
   MinLength,
   MaxLength,
 } from 'class-validator';
+import { RoleType } from '../models/role.model';
 
 export class CreateOrganizationDto {
   @IsString()
@@ -34,6 +36,12 @@ export class UpdateOrganizationDto {
   @IsString()
   @MaxLength(2000)
   description?: string;
+}
+
+/** Body for PUT :orgId/members/:userId/role. Only owner can call; role must be admin or viewer. */
+export class UpdateMemberRoleDto {
+  @IsEnum(RoleType)
+  role: RoleType;
 }
 
 /** Owner (creator) or member summary for org responses */

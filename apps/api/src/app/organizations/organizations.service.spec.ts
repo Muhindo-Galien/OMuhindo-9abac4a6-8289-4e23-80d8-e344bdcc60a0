@@ -291,16 +291,47 @@ describe('OrganizationsService', () => {
   });
 
   describe('revokeMembership', () => {
-    it('should throw ForbiddenException when caller is not admin/owner', async () => {
-      effectiveRoleService.hasMinimumRole.mockResolvedValue(false);
+    it('should throw ForbiddenException when caller has no access to org', async () => {
+      effectiveRoleService.getEffectiveRole.mockResolvedValue(null);
 
       await expect(
         service.revokeMembership('org-1', 'target-id', 'viewer-user')
       ).rejects.toThrow(ForbiddenException);
+      expect(memberRepo.remove).not.toHaveBeenCalled();
+    });
+
+    it('should throw when viewer tries to revoke another user (only self allowed)', async () => {
+      effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.VIEWER);
+      memberRepo.findOne.mockResolvedValue({
+        id: 'm1',
+        userId: 'target-id',
+        organizationId: 'org-1',
+        role: RoleType.VIEWER,
+      });
+
+      await expect(
+        service.revokeMembership('org-1', 'target-id', 'viewer-user')
+      ).rejects.toThrow(ForbiddenException);
+      expect(memberRepo.remove).not.toHaveBeenCalled();
+    });
+
+    it('should allow viewer to revoke their own membership', async () => {
+      const membership = {
+        id: 'm1',
+        userId: 'viewer-user',
+        organizationId: 'org-1',
+        role: RoleType.VIEWER,
+      };
+      effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.VIEWER);
+      memberRepo.findOne.mockResolvedValue(membership);
+      memberRepo.remove.mockResolvedValue(undefined);
+
+      await service.revokeMembership('org-1', 'viewer-user', 'viewer-user');
+
+      expect(memberRepo.remove).toHaveBeenCalledWith(membership);
     });
 
     it('should forbid admin from revoking owner', async () => {
-      effectiveRoleService.hasMinimumRole.mockResolvedValue(true);
       effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.ADMIN);
       memberRepo.findOne.mockResolvedValue({ id: 'm1', role: RoleType.OWNER });
 
@@ -310,14 +341,59 @@ describe('OrganizationsService', () => {
       expect(memberRepo.remove).not.toHaveBeenCalled();
     });
 
+    it('should forbid admin from revoking another admin', async () => {
+      effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.ADMIN);
+      memberRepo.findOne.mockResolvedValue({
+        id: 'm1',
+        userId: 'other-admin',
+        organizationId: 'org-1',
+        role: RoleType.ADMIN,
+      });
+
+      await expect(
+        service.revokeMembership('org-1', 'other-admin', 'admin-user')
+      ).rejects.toThrow(ForbiddenException);
+      expect(memberRepo.remove).not.toHaveBeenCalled();
+    });
+
+    it('should allow admin to revoke a viewer', async () => {
+      const membership = {
+        id: 'm1',
+        userId: 'viewer-id',
+        organizationId: 'org-1',
+        role: RoleType.VIEWER,
+      };
+      effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.ADMIN);
+      memberRepo.findOne.mockResolvedValue(membership);
+      memberRepo.remove.mockResolvedValue(undefined);
+
+      await service.revokeMembership('org-1', 'viewer-id', 'admin-user');
+
+      expect(memberRepo.remove).toHaveBeenCalledWith(membership);
+    });
+
     it('should throw NotFoundException when membership does not exist', async () => {
-      effectiveRoleService.hasMinimumRole.mockResolvedValue(true);
       effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.OWNER);
       memberRepo.findOne.mockResolvedValue(null);
 
       await expect(
         service.revokeMembership('org-1', 'target-user', 'owner-user')
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw when owner tries to revoke another owner', async () => {
+      effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.OWNER);
+      memberRepo.findOne.mockResolvedValue({
+        id: 'm1',
+        userId: 'other-owner',
+        organizationId: 'org-1',
+        role: RoleType.OWNER,
+      });
+
+      await expect(
+        service.revokeMembership('org-1', 'other-owner', 'owner-user')
+      ).rejects.toThrow(ForbiddenException);
+      expect(memberRepo.remove).not.toHaveBeenCalled();
     });
 
     it('should remove membership when owner revokes a non-owner', async () => {
@@ -327,7 +403,6 @@ describe('OrganizationsService', () => {
         organizationId: 'org-1',
         role: RoleType.VIEWER,
       };
-      effectiveRoleService.hasMinimumRole.mockResolvedValue(true);
       effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.OWNER);
       memberRepo.findOne.mockResolvedValue(membership);
       memberRepo.remove.mockResolvedValue(undefined);
@@ -390,6 +465,85 @@ describe('OrganizationsService', () => {
     });
   });
 
+  describe('updateMemberRole', () => {
+    it('should throw when non-owner tries to update role', async () => {
+      effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.ADMIN);
+      memberRepo.findOne.mockResolvedValue({
+        id: 'm1',
+        userId: 'target',
+        organizationId: 'org-1',
+        role: RoleType.VIEWER,
+      });
+
+      await expect(
+        service.updateMemberRole(
+          'org-1',
+          'target',
+          RoleType.ADMIN,
+          'admin-user'
+        )
+      ).rejects.toThrow(ForbiddenException);
+      expect(memberRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('should throw when owner tries to change another owner role', async () => {
+      effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.OWNER);
+      memberRepo.findOne.mockResolvedValue({
+        id: 'm1',
+        userId: 'other-owner',
+        organizationId: 'org-1',
+        role: RoleType.OWNER,
+      });
+
+      await expect(
+        service.updateMemberRole(
+          'org-1',
+          'other-owner',
+          RoleType.ADMIN,
+          'owner-user'
+        )
+      ).rejects.toThrow(ForbiddenException);
+      expect(memberRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('should update member role when owner sets viewer to admin', async () => {
+      const membership = {
+        id: 'm1',
+        userId: 'target',
+        organizationId: 'org-1',
+        role: RoleType.VIEWER,
+      };
+      effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.OWNER);
+      memberRepo.findOne.mockResolvedValue(membership);
+      memberRepo.save.mockResolvedValue({
+        ...membership,
+        role: RoleType.ADMIN,
+      });
+
+      await service.updateMemberRole(
+        'org-1',
+        'target',
+        RoleType.ADMIN,
+        'owner-user'
+      );
+
+      expect(membership.role).toBe(RoleType.ADMIN);
+      expect(memberRepo.save).toHaveBeenCalledWith(membership);
+      expect(auditService.logAction).toHaveBeenCalledWith(
+        'owner-user',
+        'role_changed',
+        'membership',
+        expect.objectContaining({
+          details: {
+            targetUserId: 'target',
+            previousRole: RoleType.VIEWER,
+            newRole: RoleType.ADMIN,
+          },
+        })
+      );
+    });
+  });
+
   describe('revocation: child vs parent', () => {
     it('should revoke only child membership when revoking from child org', async () => {
       const childMembership = {
@@ -398,7 +552,6 @@ describe('OrganizationsService', () => {
         organizationId: 'child-org',
         role: RoleType.VIEWER,
       };
-      effectiveRoleService.hasMinimumRole.mockResolvedValue(true);
       effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.OWNER);
       memberRepo.findOne.mockResolvedValue(childMembership);
       memberRepo.remove.mockResolvedValue(undefined);
@@ -418,7 +571,6 @@ describe('OrganizationsService', () => {
         organizationId: 'parent-org',
         role: RoleType.VIEWER,
       };
-      effectiveRoleService.hasMinimumRole.mockResolvedValue(true);
       effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.OWNER);
       memberRepo.findOne.mockResolvedValue(parentMembership);
       memberRepo.remove.mockResolvedValue(undefined);

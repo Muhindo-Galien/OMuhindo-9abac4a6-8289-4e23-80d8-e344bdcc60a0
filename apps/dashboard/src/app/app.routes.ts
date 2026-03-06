@@ -48,6 +48,13 @@ const appLayoutRoute: Route = {
       loadComponent: () =>
         import('./audit/audit-logs.component').then(c => c.AuditLogsComponent),
     },
+    {
+      path: 'manage',
+      loadComponent: () =>
+        import('./manage/manage-spaces.component').then(
+          c => c.ManageSpacesComponent
+        ),
+    },
     { path: '', redirectTo: 'tasks/board', pathMatch: 'full' },
   ],
 };
@@ -56,6 +63,13 @@ export const appRoutes: Route[] = [
   { path: '', redirectTo: '/orgs', pathMatch: 'full' },
   { path: 'login', ...loginRoute },
   { path: 'register', ...registerRoute },
+  {
+    path: 'invite/accept',
+    loadComponent: () =>
+      import('./invite/invite-accept.component').then(
+        c => c.InviteAcceptComponent
+      ),
+  },
   {
     path: 'orgs',
     canActivate: [AuthGuard],
@@ -66,5 +80,6 @@ export const appRoutes: Route[] = [
   { path: 'dashboard', redirectTo: '/app/dashboard', pathMatch: 'full' },
   { path: 'tasks', redirectTo: '/app/tasks/board', pathMatch: 'prefix' },
   { path: 'audit-logs', redirectTo: '/app/audit-logs', pathMatch: 'full' },
+  { path: 'manage', redirectTo: '/app/manage', pathMatch: 'full' },
   { path: '**', redirectTo: '/orgs' },
 ];

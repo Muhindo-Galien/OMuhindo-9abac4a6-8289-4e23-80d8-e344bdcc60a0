@@ -42,6 +42,7 @@ export class Role {
 }
 
 // Predefined role permission mappings for seeding
+// Every role with access can view tasks (task:read). Viewers can update their own tasks (task:update enforced per-task in service).
 export const DEFAULT_ROLE_PERMISSIONS = {
   [RoleType.OWNER]: [
     'task:create',
@@ -64,7 +65,7 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     'user:read',
     'organization:read',
   ],
-  [RoleType.VIEWER]: ['task:read'],
+  [RoleType.VIEWER]: ['task:read', 'task:update'],
 };
 
 export function getRoleLevel(role: RoleType): number {

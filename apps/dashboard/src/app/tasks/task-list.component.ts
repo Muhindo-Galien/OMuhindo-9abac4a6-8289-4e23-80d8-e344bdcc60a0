@@ -2,13 +2,15 @@ import { Component, OnInit, inject, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { skip, distinctUntilChanged } from 'rxjs/operators';
 
-import { TaskCardComponent } from './task-card.component';
+import { TaskListItemComponent } from './task-list-item.component';
 import { TaskFormComponent } from './task-form.component';
-import { TaskFilterModalComponent } from './task-filter-modal.component';
+import { TaskFiltersComponent } from './task-filters.component';
 import { TaskService } from '../services/task.service';
 import { OrgContextService } from '../services/org-context.service';
+import { TaskPermissionService } from '../services/task-permission.service';
 import {
   CreateTaskDto,
   UpdateTaskDto,
@@ -22,63 +24,105 @@ import {
   imports: [
     CommonModule,
     RouterModule,
-    TaskCardComponent,
+    FormsModule,
+    TaskListItemComponent,
     TaskFormComponent,
-    TaskFilterModalComponent,
+    TaskFiltersComponent,
   ],
   template: `
     <div class="bg-gray-50 min-h-full">
-      <!-- List toolbar: Filter + Create task -->
+      <!-- Toolbar: Search (always visible) + Filter toggle + Create task -->
       <div
-        class="container-padding py-4 flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-white"
+        class="container-padding py-4 flex flex-wrap items-center gap-3 border-b border-gray-200 bg-white"
       >
-        <div class="flex items-center gap-2">
-          <button
-            type="button"
-            (click)="openFilterModal()"
-            class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-          >
-            <svg
-              class="w-5 h-5 text-gray-500"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+        <div class="flex-1 min-w-[180px] max-w-sm">
+          <div class="relative">
+            <div
+              class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"
             >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
-              />
-            </svg>
-            Filter
-          </button>
-          <button
-            type="button"
-            (click)="openCreateModal()"
-            [disabled]="!canCreateTasks()"
-            [title]="
-              canCreateTasks() ? 'Create task' : TASKS_REQUIRE_SPACE_MESSAGE
-            "
-            class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-turbovets-navy rounded-lg hover:bg-turbovets-navy/90 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <svg
-              class="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 4v16m8-8H4"
-              ></path>
-            </svg>
-            Create task
-          </button>
+              <svg
+                class="h-5 w-5 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+            </div>
+            <input
+              type="text"
+              [(ngModel)]="currentFilters.search"
+              (ngModelChange)="applyFilters()"
+              placeholder="Search tasks..."
+              class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-turbovets-navy focus:border-turbovets-navy"
+              [disabled]="isLoading"
+            />
+          </div>
         </div>
+        <button
+          type="button"
+          (click)="filterPanelOpen = !filterPanelOpen"
+          [class.ring-2]="filterPanelOpen"
+          [class.ring-turbovets-navy]="filterPanelOpen"
+          class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+        >
+          <svg
+            class="w-5 h-5 text-gray-500"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+            />
+          </svg>
+          Filter
+        </button>
+        <button
+          type="button"
+          (click)="openCreateModal()"
+          [disabled]="!canCreateTasks()"
+          [title]="
+            canCreateTasks() ? 'Create task' : TASKS_REQUIRE_SPACE_MESSAGE
+          "
+          class="ml-auto flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-turbovets-navy rounded-lg hover:bg-turbovets-navy/90 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 4v16m8-8H4"
+            />
+          </svg>
+          Create task
+        </button>
       </div>
+
+      <!-- Filter panel (visible only when Filter is clicked; no search here) -->
+      @if (filterPanelOpen) {
+      <div class="container-padding pt-4 pb-2">
+        <app-task-filters
+          [showSearch]="false"
+          [isLoading]="isLoading"
+          [filterValues]="currentFilters"
+          (filterChange)="onFiltersChange($event)"
+        ></app-task-filters>
+      </div>
+      }
 
       <!-- Main Content -->
       <main class="container-padding section-spacing">
@@ -101,19 +145,23 @@ import {
           </div>
         </div>
 
-        <!-- Task Grid -->
+        <!-- Task List (table-like, horizontally scrollable on mobile) -->
         <div
           *ngIf="!isLoading && filteredTasks.length > 0"
-          class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6"
+          class="task-list-scroll mt-6 rounded-lg border border-gray-200 bg-white overflow-hidden"
         >
-          <app-task-card
-            *ngFor="let task of filteredTasks; trackBy: trackByTaskId"
-            [task]="task"
-            (edit)="openEditModal($event)"
-            (delete)="deleteTask($event)"
-            (statusChange)="updateTaskStatus($event.taskId, $event.status)"
-            class="animate-fade-in"
-          ></app-task-card>
+          <div class="task-list-inner overflow-x-auto">
+            <app-task-list-item
+              *ngFor="let task of filteredTasks; trackBy: trackByTaskId"
+              [task]="task"
+              [canEdit]="taskPermissions.canUpdate"
+              [canDelete]="taskPermissions.canDelete"
+              (edit)="openEditModal($event)"
+              (delete)="deleteTask($event)"
+              (statusChange)="updateTaskStatus($event.taskId, $event.status)"
+              class="animate-fade-in"
+            ></app-task-list-item>
+          </div>
         </div>
 
         <!-- Empty State -->
@@ -164,46 +212,7 @@ import {
             </button>
           </div>
         </div>
-
-        <!-- Task Statistics -->
-        <div
-          *ngIf="tasks.length > 0"
-          class="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4"
-        >
-          <div class="bg-white rounded-lg p-4 shadow-task-card">
-            <div class="text-2xl font-bold text-gray-900">
-              {{ getTaskCountByStatus('TODO') }}
-            </div>
-            <div class="text-sm text-gray-600">To Do</div>
-          </div>
-          <div class="bg-white rounded-lg p-4 shadow-task-card">
-            <div class="text-2xl font-bold text-primary-600">
-              {{ getTaskCountByStatus('IN_PROGRESS') }}
-            </div>
-            <div class="text-sm text-gray-600">In Progress</div>
-          </div>
-          <div class="bg-white rounded-lg p-4 shadow-task-card">
-            <div class="text-2xl font-bold text-green-600">
-              {{ getTaskCountByStatus('DONE') }}
-            </div>
-            <div class="text-sm text-gray-600">Completed</div>
-          </div>
-          <div class="bg-white rounded-lg p-4 shadow-task-card">
-            <div class="text-2xl font-bold text-gray-900">
-              {{ tasks.length }}
-            </div>
-            <div class="text-sm text-gray-600">Total</div>
-          </div>
-        </div>
       </main>
-
-      <!-- Filter Modal -->
-      <app-task-filter-modal
-        [isOpen]="filterModalOpen"
-        [isLoading]="isLoading"
-        (close)="closeFilterModal()"
-        (filterChange)="onFiltersChange($event)"
-      ></app-task-filter-modal>
 
       <!-- Task Form Modal -->
       <app-task-form
@@ -227,6 +236,13 @@ import {
 
       .flex-between {
         @apply flex items-center justify-between;
+      }
+
+      .task-list-scroll {
+        -webkit-overflow-scrolling: touch;
+      }
+      .task-list-inner {
+        min-height: 0;
       }
 
       .task-card {
@@ -253,20 +269,39 @@ import {
 export class TaskListComponent implements OnInit {
   private taskService = inject(TaskService);
   private orgContext = inject(OrgContextService);
+  private taskPermissionService = inject(TaskPermissionService);
   private destroyRef = inject(DestroyRef);
 
   tasks: any[] = [];
   filteredTasks: any[] = [];
   isLoading = false;
   showTaskModal = false;
-  filterModalOpen = false;
+  filterPanelOpen = false;
   selectedTask: any = null;
+
+  currentFilters = {
+    search: '',
+    status: '',
+    priority: '',
+    category: '',
+    sortBy: 'createdAt',
+    quickFilter: 'all',
+  };
 
   /** Shared with backend RequireSpaceOrgGuard: tasks only in spaces. */
   readonly TASKS_REQUIRE_SPACE_MESSAGE = TASKS_REQUIRE_SPACE_MESSAGE;
 
+  get taskPermissions() {
+    return this.taskPermissionService.getTaskPermissions(
+      this.orgContext.getCurrentOrgId()
+    );
+  }
+
   canCreateTasks(): boolean {
-    return isChildOrg(this.orgContext.getCurrentOrg());
+    return (
+      isChildOrg(this.orgContext.getCurrentOrg()) &&
+      this.taskPermissions.canCreate
+    );
   }
 
   ngOnInit(): void {
@@ -284,9 +319,8 @@ export class TaskListComponent implements OnInit {
     this.isLoading = true;
     this.taskService.getTasks().subscribe({
       next: tasks => {
-        console.log('Tasks loaded:', tasks);
         this.tasks = tasks;
-        this.filteredTasks = tasks;
+        this.applyFilters();
         this.isLoading = false;
       },
       error: error => {
@@ -296,17 +330,16 @@ export class TaskListComponent implements OnInit {
     });
   }
 
-  openFilterModal(): void {
-    this.filterModalOpen = true;
-  }
-
-  closeFilterModal(): void {
-    this.filterModalOpen = false;
+  applyFilters(): void {
+    this.filteredTasks = this.taskService.filterTasks(
+      this.tasks,
+      this.currentFilters
+    );
   }
 
   onFiltersChange(filters: any): void {
-    console.log('Filters changed:', filters);
-    this.filteredTasks = this.taskService.filterTasks(this.tasks, filters);
+    this.currentFilters = { ...filters, search: this.currentFilters.search };
+    this.applyFilters();
   }
 
   openCreateModal(): void {

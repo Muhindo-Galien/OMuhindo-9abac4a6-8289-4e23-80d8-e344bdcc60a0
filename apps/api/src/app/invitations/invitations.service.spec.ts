@@ -49,11 +49,13 @@ describe('InvitationsService', () => {
       findOne: jest.fn(),
       create: jest.fn((d: any) => d),
       save: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
     };
     userRepo = { findOne: jest.fn() };
     auditService = { logAction: jest.fn().mockResolvedValue(undefined) };
     effectiveRoleService = {
       hasMinimumRole: jest.fn().mockResolvedValue(true),
+      getEffectiveRole: jest.fn().mockResolvedValue(RoleType.ADMIN),
     };
     mailService = {
       sendInvitation: jest.fn().mockResolvedValue({ sent: true }),
@@ -90,7 +92,7 @@ describe('InvitationsService', () => {
 
   describe('send', () => {
     it('should throw ForbiddenException when user is not admin/owner', async () => {
-      effectiveRoleService.hasMinimumRole.mockResolvedValue(false);
+      effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.VIEWER);
 
       await expect(service.send(sendDto, 'viewer-user')).rejects.toThrow(
         ForbiddenException
@@ -152,20 +154,47 @@ describe('InvitationsService', () => {
     });
 
     it('should allow owner to send invite (same as admin for permission)', async () => {
+      effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.OWNER);
       const result = await service.send(sendDto, 'owner-user');
       expect(result.token).toBeDefined();
-      expect(effectiveRoleService.hasMinimumRole).toHaveBeenCalledWith(
+      expect(effectiveRoleService.getEffectiveRole).toHaveBeenCalledWith(
         'owner-user',
-        'org-1',
-        RoleType.ADMIN
+        'org-1'
       );
     });
 
     it('should deny viewer from sending invite', async () => {
-      effectiveRoleService.hasMinimumRole.mockResolvedValue(false);
+      effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.VIEWER);
       await expect(service.send(sendDto, 'viewer-user')).rejects.toThrow(
         ForbiddenException
       );
+    });
+
+    it('should throw ForbiddenException when admin sends owner invitation', async () => {
+      effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.ADMIN);
+      const ownerDto = { ...sendDto, role: RoleType.OWNER };
+
+      await expect(service.send(ownerDto, 'admin-user')).rejects.toThrow(
+        ForbiddenException
+      );
+      await expect(service.send(ownerDto, 'admin-user')).rejects.toThrow(
+        /Admins cannot send owner invitations/
+      );
+      expect(invitationRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException when owner sends owner invite and org already has owner', async () => {
+      effectiveRoleService.getEffectiveRole.mockResolvedValue(RoleType.OWNER);
+      memberRepo.count.mockResolvedValue(1);
+      const ownerDto = { ...sendDto, role: RoleType.OWNER };
+
+      await expect(service.send(ownerDto, 'owner-user')).rejects.toThrow(
+        BadRequestException
+      );
+      await expect(service.send(ownerDto, 'owner-user')).rejects.toThrow(
+        /only have one owner/
+      );
+      expect(invitationRepo.save).not.toHaveBeenCalled();
     });
   });
 
@@ -207,6 +236,7 @@ describe('InvitationsService', () => {
         organizationName: 'Test Org',
         role: RoleType.ADMIN,
         organizationId: 'org-1',
+        userExists: false,
       });
     });
   });
@@ -285,6 +315,22 @@ describe('InvitationsService', () => {
       const result = await service.acceptWithToken('valid', 'user-1');
 
       expect(result.alreadyMember).toBe(true);
+      expect(memberRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException when accepting owner invite and org already has owner', async () => {
+      const ownerInv = { ...validInv, role: RoleType.OWNER };
+      invitationRepo.findOne.mockResolvedValue(ownerInv);
+      userRepo.findOne.mockResolvedValue(currentUser);
+      memberRepo.findOne.mockResolvedValue(null);
+      memberRepo.count.mockResolvedValue(1);
+
+      await expect(service.acceptWithToken('valid', 'user-1')).rejects.toThrow(
+        BadRequestException
+      );
+      await expect(service.acceptWithToken('valid', 'user-1')).rejects.toThrow(
+        /already has an owner/
+      );
       expect(memberRepo.save).not.toHaveBeenCalled();
     });
   });
