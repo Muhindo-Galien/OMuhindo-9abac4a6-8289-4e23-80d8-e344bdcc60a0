@@ -6,6 +6,10 @@ A full-stack task management system built with **NestJS**, **Angular**, and **Po
 
 This is a secure task management system designed for organizations with role-based access control. Users can create, manage, and track tasks while respecting organizational hierarchy and permissions. The system supports three role levels (Owner, Admin, Viewer) with different levels of access to tasks and audit logs.
 
+## Demo link (YouTube Video)
+
+Watch the project demonstration: [Click here to watch](https://www.youtube.com/watch?v=m8K3ONCK60Y)
+
 ## Project Architecture
 
 ### NX Monorepo Structure
