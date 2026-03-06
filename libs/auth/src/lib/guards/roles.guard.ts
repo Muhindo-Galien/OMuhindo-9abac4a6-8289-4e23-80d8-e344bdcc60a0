@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { RoleType } from '@data';
+import { RoleType, getRoleLevel } from '@data';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -17,7 +17,7 @@ export class RolesGuard implements CanActivate {
       context.getHandler()
     );
 
-    if (!requiredRoles) {
+    if (!requiredRoles?.length) {
       return true; // No role requirement, allow access
     }
 
@@ -28,35 +28,40 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('User not authenticated');
     }
 
-    // Check role inheritance - higher roles inherit lower role permissions
-    const hasRole = requiredRoles.some(requiredRole =>
-      this.validateRoleHierarchy(user.role, requiredRole)
+    // Minimum level needed: e.g. [ADMIN] => 1, so OWNER (2) or ADMIN (1) pass
+    const minRequiredLevel = Math.min(
+      ...requiredRoles.map((r) => getRoleLevel(r))
     );
 
-    if (!hasRole) {
-      throw new ForbiddenException(
-        `Access denied. Required roles: ${requiredRoles.join(', ')}`
+    // 1) Check global user.role (JWT often has role: 'user' = viewer level)
+    const globalLevel = this.getRoleLevelFromRole(user.role);
+    if (globalLevel >= minRequiredLevel) return true;
+
+    // 2) Org-scoped: user may have no global role but have admin/owner in org_roles (set by EnrichOrgRolesGuard).
+    //    Owner/Admin in any org satisfies "admin or higher" for task/organization operations.
+    const orgRoles = user.org_roles as Record<string, RoleType> | undefined;
+    if (orgRoles && typeof orgRoles === 'object') {
+      const maxOrgLevel = Math.max(
+        -1,
+        ...Object.values(orgRoles).map((r) => getRoleLevel(r))
       );
+      if (maxOrgLevel >= minRequiredLevel) return true;
     }
 
-    return true;
+    throw new ForbiddenException(
+      `Access denied. Required roles: ${requiredRoles.join(', ')}`
+    );
   }
 
   /**
-   * Validate role hierarchy. Global role "user" is treated as viewer-level for route access.
+   * Map role to level. Global "user" is viewer-level (0).
    */
-  private validateRoleHierarchy(
-    userRole: string | RoleType,
-    requiredRole: RoleType
-  ): boolean {
-    const roleHierarchy: Record<string, number> = {
-      [RoleType.VIEWER]: 0,
-      [RoleType.ADMIN]: 1,
-      [RoleType.OWNER]: 2,
-      user: 0, // global role "user" satisfies viewer
-    };
-    const userLevel = roleHierarchy[userRole] ?? -1;
-    const requiredLevel = roleHierarchy[requiredRole] ?? 0;
-    return userLevel >= requiredLevel;
+  private getRoleLevelFromRole(role: string | RoleType | undefined): number {
+    if (role == null) return -1;
+    const level = getRoleLevel(role as RoleType);
+    if (level >= 0) return level;
+    // JWT may send role "user" for any authenticated user
+    if (role === 'user') return 0; // viewer level
+    return -1;
   }
 }
