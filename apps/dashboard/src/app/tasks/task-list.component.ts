@@ -151,6 +151,17 @@ import {
           class="task-list-scroll mt-6 rounded-lg border border-gray-200 bg-white overflow-hidden"
         >
           <div class="task-list-inner overflow-x-auto">
+            <!-- Column headers -->
+            <div class="task-list-header-row">
+              <div class="task-list-cell task-list-cell-priority">Priority</div>
+              <div class="task-list-cell task-list-cell-title">Title</div>
+              <div class="task-list-cell task-list-cell-status">Status</div>
+              <div class="task-list-cell task-list-cell-category">Category</div>
+              <div class="task-list-cell task-list-cell-owner">Owner</div>
+              <div class="task-list-cell task-list-cell-due">Due date</div>
+              <div class="task-list-cell task-list-cell-created">Created</div>
+              <div class="task-list-cell task-list-cell-description">Description</div>
+            </div>
             <app-task-list-item
               *ngFor="let task of filteredTasks; trackBy: trackByTaskId"
               [task]="task"
@@ -244,6 +255,20 @@ import {
       .task-list-inner {
         min-height: 0;
       }
+      .task-list-header-row {
+        @apply flex items-center gap-4 min-w-[900px] border-b border-gray-200 bg-gray-50 text-xs font-semibold text-gray-600 px-4;
+      }
+      .task-list-header-row .task-list-cell {
+        @apply flex items-center flex-shrink-0 py-3 px-0;
+      }
+      .task-list-header-row .task-list-cell-priority { width: 5rem; min-width: 5rem; }
+      .task-list-header-row .task-list-cell-title { min-width: 120px; flex: 1 1 auto; max-width: 180px; }
+      .task-list-header-row .task-list-cell-status { width: 120px; min-width: 120px; }
+      .task-list-header-row .task-list-cell-category { width: 90px; min-width: 90px; }
+      .task-list-header-row .task-list-cell-owner { width: 120px; min-width: 120px; }
+      .task-list-header-row .task-list-cell-due,
+      .task-list-header-row .task-list-cell-created { width: 100px; min-width: 100px; }
+      .task-list-header-row .task-list-cell-description { min-width: 140px; max-width: 220px; flex: 1 1 auto; }
 
       .task-card {
         @apply bg-white rounded-lg p-6 shadow-sm border border-gray-200;

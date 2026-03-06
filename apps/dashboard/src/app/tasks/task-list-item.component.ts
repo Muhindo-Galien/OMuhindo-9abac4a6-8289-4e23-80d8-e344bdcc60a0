@@ -9,7 +9,11 @@ import { TaskStatus, TaskPriority, TaskCategory } from '@data';
   template: `
     <div
       class="task-list-row"
-      (click)="$event.stopPropagation()"
+      (click)="onRowClick()"
+      (keydown.enter)="onRowClick()"
+      (keydown.space)="onRowClick(); $event.preventDefault()"
+      tabindex="0"
+      role="button"
     >
       <!-- 1. Priority -->
       <div class="task-list-cell task-list-cell-priority">
@@ -23,11 +27,13 @@ import { TaskStatus, TaskPriority, TaskCategory } from '@data';
 
       <!-- 2. Title -->
       <div class="task-list-cell task-list-cell-title">
-        <span class="task-list-title-text" [title]="task.title">{{ task.title }}</span>
+        <span class="task-list-title-text" [title]="task.title">{{
+          task.title
+        }}</span>
       </div>
 
       <!-- 3. Status -->
-      <div class="task-list-cell task-list-cell-status">
+      <div class="task-list-cell task-list-cell-status" (click)="$event.stopPropagation()">
         <select
           *ngIf="canEdit"
           [value]="task.status"
@@ -60,8 +66,8 @@ import { TaskStatus, TaskPriority, TaskCategory } from '@data';
         </span>
       </div>
 
-      <!-- 5. Initials -->
-      <div class="task-list-cell task-list-cell-initials">
+      <!-- 5. Owner -->
+      <div class="task-list-cell task-list-cell-owner">
         <span
           class="task-list-initials"
           [title]="getAssigneeName()"
@@ -69,44 +75,36 @@ import { TaskStatus, TaskPriority, TaskCategory } from '@data';
         >
           {{ getAssigneeInitials() }}
         </span>
+        <span class="task-list-owner-name" [title]="getAssigneeName()">{{
+          getAssigneeName()
+        }}</span>
       </div>
 
-      <!-- 5. More -->
-      <div class="task-list-cell task-list-cell-more">
-        <div class="task-list-more-wrap" *ngIf="canEdit || canDelete">
-          <button
-            type="button"
-            (click)="showActions = !showActions; $event.stopPropagation()"
-            class="task-list-more-btn"
-            aria-label="More actions"
-          >
-            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-            </svg>
-          </button>
-          <div
-            *ngIf="showActions"
-            class="task-list-dropdown"
-            (click)="showActions = false"
-          >
-            <button *ngIf="canEdit" type="button" (click)="onEdit()" class="task-list-dropdown-item">
-              Edit
-            </button>
-            <button *ngIf="canDelete" type="button" (click)="onDelete()" class="task-list-dropdown-item task-list-dropdown-item-danger">
-              Delete
-            </button>
-          </div>
-        </div>
+      <!-- 6. Due date -->
+      <div class="task-list-cell task-list-cell-due">
+        <span class="task-list-date">{{ formatDueDate(task.dueDate) }}</span>
+      </div>
+
+      <!-- 7. Created -->
+      <div class="task-list-cell task-list-cell-created">
+        <span class="task-list-date">{{ formatCreated(task.createdAt) }}</span>
+      </div>
+
+      <!-- 8. Description (snippet) -->
+      <div class="task-list-cell task-list-cell-description">
+        <span class="task-list-desc-snippet" [title]="task.description">{{
+          getDescriptionSnippet()
+        }}</span>
       </div>
     </div>
   `,
   styles: [
     `
       .task-list-row {
-        @apply flex items-center gap-0 min-w-[620px] border-b border-gray-200 bg-white hover:bg-gray-50/80 transition-colors;
+        @apply flex items-center gap-4 min-w-[900px] border-b border-gray-200 bg-white hover:bg-gray-50/80 transition-colors px-4 cursor-pointer;
       }
       .task-list-cell {
-        @apply flex items-center flex-shrink-0 py-3 px-3;
+        @apply flex items-center flex-shrink-0 py-3 px-0;
       }
       .task-list-cell-priority {
         width: 5rem;
@@ -115,70 +113,97 @@ import { TaskStatus, TaskPriority, TaskCategory } from '@data';
       .task-list-priority-label {
         @apply text-xs font-medium px-2 py-0.5 rounded;
       }
-      .task-list-priority-label.bg-priority-low { @apply bg-gray-100 text-gray-700; }
-      .task-list-priority-label.bg-priority-medium { @apply bg-blue-100 text-blue-800; }
-      .task-list-priority-label.bg-priority-high { @apply bg-amber-100 text-amber-800; }
-      .task-list-priority-label.bg-priority-urgent { @apply bg-red-100 text-red-800; }
+      .task-list-priority-label.bg-priority-low {
+        @apply bg-gray-100 text-gray-700;
+      }
+      .task-list-priority-label.bg-priority-medium {
+        @apply bg-blue-100 text-blue-800;
+      }
+      .task-list-priority-label.bg-priority-high {
+        @apply bg-amber-100 text-amber-800;
+      }
+      .task-list-priority-label.bg-priority-urgent {
+        @apply bg-red-100 text-red-800;
+      }
 
       .task-list-cell-title {
-        @apply min-w-[120px] flex-1 max-w-[280px];
+        @apply min-w-[120px] flex-1 max-w-[180px];
       }
       .task-list-title-text {
         @apply text-gray-900 text-sm font-medium truncate block;
       }
 
       .task-list-cell-status {
-        @apply w-[130px] min-w-[130px];
+        @apply w-[120px] min-w-[120px];
       }
       .task-list-status-select,
       .task-list-status-badge {
         @apply px-2.5 py-1 rounded-md text-xs font-medium text-white cursor-pointer appearance-none pr-7 border-0;
       }
-      .task-list-status-badge { @apply cursor-default; }
+      .task-list-status-badge {
+        @apply cursor-default;
+      }
       .task-list-status-select.bg-status-todo,
-      .task-list-status-badge.bg-status-todo { background-color: var(--status-todo, #6b7280); }
+      .task-list-status-badge.bg-status-todo {
+        background-color: var(--status-todo, #6b7280);
+      }
       .task-list-status-select.bg-status-progress,
-      .task-list-status-badge.bg-status-progress { background-color: var(--status-progress, #2563eb); }
+      .task-list-status-badge.bg-status-progress {
+        background-color: var(--status-progress, #2563eb);
+      }
       .task-list-status-select.bg-status-done,
-      .task-list-status-badge.bg-status-done { background-color: var(--status-done, #059669); }
+      .task-list-status-badge.bg-status-done {
+        background-color: var(--status-done, #059669);
+      }
       .task-list-status-select.bg-status-blocked,
-      .task-list-status-badge.bg-status-blocked { background-color: var(--status-blocked, #6b7280); }
+      .task-list-status-badge.bg-status-blocked {
+        background-color: var(--status-blocked, #6b7280);
+      }
 
       .task-list-cell-category {
-        @apply w-[100px] min-w-[100px];
+        @apply w-[90px] min-w-[90px];
       }
       .task-list-category-badge {
         @apply text-xs font-medium px-2 py-0.5 rounded;
       }
-      .task-list-category-badge.bg-cat-work { @apply bg-blue-100 text-blue-800; }
-      .task-list-category-badge.bg-cat-personal { @apply bg-green-100 text-green-800; }
-      .task-list-category-badge.bg-cat-project { @apply bg-indigo-100 text-indigo-800; }
-      .task-list-category-badge.bg-cat-meeting { @apply bg-purple-100 text-purple-800; }
-      .task-list-category-badge.bg-cat-other { @apply bg-gray-100 text-gray-800; }
+      .task-list-category-badge.bg-cat-work {
+        @apply bg-blue-100 text-blue-800;
+      }
+      .task-list-category-badge.bg-cat-personal {
+        @apply bg-green-100 text-green-800;
+      }
+      .task-list-category-badge.bg-cat-project {
+        @apply bg-indigo-100 text-indigo-800;
+      }
+      .task-list-category-badge.bg-cat-meeting {
+        @apply bg-purple-100 text-purple-800;
+      }
+      .task-list-category-badge.bg-cat-other {
+        @apply bg-gray-100 text-gray-800;
+      }
 
-      .task-list-cell-initials {
-        @apply w-12 min-w-[3rem] justify-center;
+      .task-list-cell-owner {
+        @apply w-[120px] min-w-[120px] gap-2;
+      }
+      .task-list-owner-name {
+        @apply text-sm text-gray-700 truncate max-w-[72px];
       }
       .task-list-initials {
         @apply w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium text-white flex-shrink-0;
         background-color: #059669;
       }
-
-      .task-list-cell-more {
-        @apply min-w-[5rem] pl-8 justify-end;
+      .task-list-cell-due,
+      .task-list-cell-created {
+        @apply w-[100px] min-w-[100px] text-sm text-gray-600;
       }
-      .task-list-more-wrap { @apply relative; }
-      .task-list-more-btn {
-        @apply p-1.5 rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors;
+      .task-list-date {
+        @apply truncate block;
       }
-      .task-list-dropdown {
-        @apply absolute right-0 top-full mt-1 w-32 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20;
+      .task-list-cell-description {
+        @apply min-w-[140px] max-w-[220px] flex-1;
       }
-      .task-list-dropdown-item {
-        @apply w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50;
-      }
-      .task-list-dropdown-item-danger {
-        @apply text-red-600 hover:bg-red-50;
+      .task-list-desc-snippet {
+        @apply text-sm text-gray-500 truncate block;
       }
     `,
   ],
@@ -189,12 +214,17 @@ export class TaskListItemComponent {
   @Input() canDelete = true;
   @Output() edit = new EventEmitter<any>();
   @Output() delete = new EventEmitter<string>();
-  @Output() statusChange = new EventEmitter<{ taskId: string; status: string }>();
-
-  showActions = false;
+  @Output() statusChange = new EventEmitter<{
+    taskId: string;
+    status: string;
+  }>();
 
   TaskStatus = TaskStatus;
   TaskPriority = TaskPriority;
+
+  onRowClick(): void {
+    if (this.canEdit || this.canDelete) this.edit.emit(this.task);
+  }
 
   onEdit(): void {
     this.edit.emit(this.task);
@@ -220,13 +250,19 @@ export class TaskListItemComponent {
   }
 
   getPriorityLabel(priority: string): string {
-    const labels: Record<string, string> = { low: 'Low', medium: 'Medium', high: 'High', urgent: 'Urgent' };
+    const labels: Record<string, string> = {
+      low: 'Low',
+      medium: 'Medium',
+      high: 'High',
+      urgent: 'Urgent',
+    };
     return labels[priority] || priority;
   }
 
   getAssigneeInitials(): string {
     const o = this.task?.owner;
-    if (o?.firstName && o?.lastName) return (o.firstName[0] + o.lastName[0]).toUpperCase();
+    if (o?.firstName && o?.lastName)
+      return (o.firstName[0] + o.lastName[0]).toUpperCase();
     if (o?.firstName) return o.firstName.slice(0, 2).toUpperCase();
     if (o?.email) return o.email.slice(0, 2).toUpperCase();
     return '?';
@@ -269,5 +305,32 @@ export class TaskListItemComponent {
       other: 'Other',
     };
     return labels[category] || 'Other';
+  }
+
+  formatDueDate(dueDate: string | Date | undefined): string {
+    if (!dueDate) return '—';
+    const d = typeof dueDate === 'string' ? new Date(dueDate) : dueDate;
+    return d.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }
+
+  formatCreated(createdAt: string | Date | undefined): string {
+    if (!createdAt) return '—';
+    const d = typeof createdAt === 'string' ? new Date(createdAt) : createdAt;
+    return d.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }
+
+  getDescriptionSnippet(maxLen: number = 60): string {
+    const desc = this.task?.description?.trim();
+    if (!desc) return '—';
+    if (desc.length <= maxLen) return desc;
+    return desc.slice(0, maxLen).trim() + '…';
   }
 }
