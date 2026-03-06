@@ -146,6 +146,17 @@ import { AuthInputFieldComponent } from './auth-input-field.component';
                   password123
                 </p>
               </div>
+              <h3 class="text-sm font-medium text-white mb-2 mt-6">
+                Demo Parent Org and Child Org or Space
+              </h3>
+              <div class="text-xs text-turbovets-sky-light space-y-1">
+                <p>
+                  <strong>Turbo Vets:</strong> Parent Org
+                </p>
+                <p>
+                  <strong>Default Space:</strong> Child Org
+                </p>
+              </div>
             </div>
           </form>
         </div>

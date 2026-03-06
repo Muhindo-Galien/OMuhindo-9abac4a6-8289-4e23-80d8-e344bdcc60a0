@@ -52,97 +52,136 @@ erDiagram
     User {
         uuid id PK
         string email UK
-        string password
+        string password (hashed)
         string firstName
         string lastName
         boolean isActive
-        uuid roleId FK
-        uuid organizationId FK
+        string globalRole           // 'user' by default
         timestamp createdAt
         timestamp updatedAt
     }
     
     Organization {
         uuid id PK
-        string name UK
+        string name
         string description
-        uuid parentId FK
+        uuid parentId FK?          // null = site, set = space
         timestamp createdAt
         timestamp updatedAt
     }
     
     Role {
         uuid id PK
-        enum name UK
+        enum name UK               // owner, admin, viewer
         string description
-        int level
-        json permissionIds
+        int level                  // owner=2, admin=1, viewer=0
+        json permissionIds         // e.g. ["task:create","task:read",...]
         timestamp createdAt
         timestamp updatedAt
     }
     
-
+    Permission {
+        uuid id PK
+        string name UK             // e.g. task:create
+        enum resource              // task, user, organization, audit_log
+        enum action                // create, read, update, delete, manage
+        string description
+        timestamp createdAt
+        timestamp updatedAt
+    }
+    
+    OrganizationMember {
+        uuid id PK
+        uuid userId FK
+        uuid organizationId FK
+        enum role                  // owner, admin, viewer (org-scoped)
+        timestamp createdAt
+    }
+    
+    Invitation {
+        uuid id PK
+        string email
+        uuid organizationId FK
+        enum role                  // invited org role
+        string token UK
+        enum status                // pending, accepted, expired, cancelled
+        uuid invitedById FK?
+        timestamp expiresAt
+        timestamp createdAt
+    }
     
     Task {
         uuid id PK
         string title
         string description
-        enum status
-        enum priority
-        enum category
+        enum status                // todo, in_progress, done, cancelled
+        enum priority              // low, medium, high, urgent
+        enum category              // work, personal, project, meeting, other
         timestamp dueDate
         timestamp completedAt
-        int sortOrder
+        int sortOrder              // drag-and-drop ordering
         uuid ownerId FK
-        uuid organizationId FK
+        uuid organizationId FK     // always a space (child org)
         timestamp createdAt
         timestamp updatedAt
     }
-
+    
     AuditLog {
         uuid id PK
-        enum action
-        enum resource
-        string details
         uuid userId FK
-        timestamp createdAt
+        uuid organizationId FK?
+        enum action                // create, update, login, invite_sent, ...
+        enum resource              // task, user, organization, auth, invitation, membership, audit_log
+        uuid resourceId FK?
+        jsonb details
+        string ipAddress
+        string userAgent
+        timestamp timestamp
+        boolean success
+        string errorMessage
     }
-
-    User }o--|| Role : "has"
-    User }o--|| Organization : "belongs to"
+    
+    User ||--o{ OrganizationMember : "memberships"
+    Organization ||--o{ OrganizationMember : "has members"
     Organization ||--o{ Organization : "parent/child"
-    User ||--o{ Task : "owns"
-    Organization ||--o{ Task : "contains"
+    Organization ||--o{ Invitation : "has invitations"
+    Role ||--o{ OrganizationMember : "org role (by type)"
+    User ||--o{ Task : "owns tasks"
+    Organization ||--o{ Task : "contains tasks"
     User ||--o{ AuditLog : "performs"
+    Organization ||--o{ AuditLog : "context"
 ```
 
 ### Core Entities
 
 **User**
-- Represents system users with personal information
-- Linked to one role and one organization
-- Password is hashed using bcrypt
+- Represents system users with personal information.
+- Has a **global role** (`globalRole`, currently always `"user"`); all fine‑grained access is organization‑scoped via memberships.
+- Password is hashed using bcrypt and never exposed in API responses.
 
 **Organization**
-- Supports 2-level hierarchy (parent/child)
-- Tasks are scoped to organizations
-- Access control respects organizational boundaries
+- Supports a **site/space** hierarchy (2 levels):
+  - **Site**: top‑level organization (no `parentId`).
+  - **Space**: child organization with `parentId` set.
+- Tasks are always scoped to **spaces** (child orgs), never directly to sites.
+- Access control is enforced per organization id, with role inheritance from sites to their spaces.
 
 **Role**
-- Three predefined roles: Owner (level 2), Admin (level 1), Viewer (level 0)
-- Contains hardcoded permission strings for each role type
-- Level-based hierarchy for access control
+- Three predefined **org‑scoped** roles: **Owner** (level 2), **Admin** (level 1), **Viewer** (level 0).
+- Each role has a numeric **level** for hierarchy and a set of permission strings (e.g. `task:create`, `task:read`) stored in `permissionIds`.
+- Roles are applied per organization via `OrganizationMember` rows; effective role per org is resolved at read time (with inheritance).
 
 **Task**
-- Core business entity with status (TODO, IN_PROGRESS, DONE, CANCELLED)
-- Priority levels (LOW, MEDIUM, HIGH)
-- Categories (WORK, PERSONAL, PROJECT, MEETING, OTHER)
-- Drag-and-drop sorting with sortOrder field
+- Core business entity representing a work item in a **space** (child org).
+- Status: `todo`, `in_progress`, `done`, `cancelled`.
+- Priority levels: `low`, `medium`, `high`, `urgent`.
+- Categories: `work`, `personal`, `project`, `meeting`, `other`.
+- Drag-and-drop sorting with `sortOrder`, used by the Kanban board.
 
 
 
 **AuditLog**
-- Tracks all user actions for security and compliance
+- Tracks all user actions for security and compliance (this is organization-scoped)
 - Immutable log entries with timestamps
 
 ### Enums and Constants
@@ -175,61 +214,80 @@ enum TaskPriority {
 
 ### JWT Authentication
 
-- **Real JWT authentication** (not mocked) using `@nestjs/jwt`
-- Tokens contain user ID, email, role, and organization ID
-- Token expiration configurable via environment variables (default: 24 hours)
-- All API endpoints protected except authentication routes
+- **Real JWT authentication** (not mocked) using `@nestjs/jwt`.
+- Access tokens contain user id, email, and global role; organization roles are resolved per request from memberships.
+- Token expiration is configurable via environment variables (default: 24 hours).
+- All API endpoints are protected by `JwtAuthGuard` except authentication routes.
 
 ### Role-Based Access Control (RBAC)
 
+RBAC is **organization-scoped**: the same user can be Owner/Admin/Viewer in different orgs, with inheritance from parent sites to child spaces.
+
 #### Role Hierarchy
-- **Owner** (Level 2): Full access to organization and sub-organizations
-- **Admin** (Level 1): Full access within their organization level
-- **Viewer** (Level 0): Access only to their own tasks
+- **Owner** (Level 2): Full access to an organization and its child spaces.
+- **Admin** (Level 1): Manage tasks, spaces, members, and invitations within their organization level.
+- **Viewer** (Level 0): Read-only access to org resources; can only operate on their own tasks.
 
 #### Guards and Decorators
 
-**JwtAuthGuard**
+**JWT + org roles enrichment**
 ```typescript
-@UseGuards(JwtAuthGuard)
-export class TasksController {
-  // All endpoints require valid JWT token
+@UseGuards(JwtAuthGuard, EnrichOrgRolesGuard)
+@Controller('organizations')
+export class OrganizationsController {
+  // req.user.org_roles is populated from memberships (including inherited roles)
 }
 ```
 
-**Role-based Protection**
+**Org-scoped role protection**
 ```typescript
-@Roles(RoleType.OWNER, RoleType.ADMIN)
-@UseGuards(JwtAuthGuard, RbacGuard)
-deleteTask() {
-  // Only Owner and Admin can delete tasks
+@Get(':orgId/members')
+@UseGuards(JwtAuthGuard, EnrichOrgRolesGuard, OrgRoleGuard)
+@OrgRoles(RoleType.VIEWER, RoleType.ADMIN, RoleType.OWNER)
+getMembers(@Param('orgId') orgId: string, @CurrentUser() user: { id: string }) {
+  // Only members of this org (viewer/admin/owner) can see its members
 }
 ```
 
-**Permission-based Protection**
+**Tasks in spaces (child orgs only)**
 ```typescript
-@RequirePermissions('audit:read')
-@UseGuards(JwtAuthGuard, RbacGuard) 
-getAuditLogs() {
-  // Requires specific permission
+@Post()
+@UseGuards(JwtAuthGuard, EnrichOrgRolesGuard, RolesGuard, OrgRoleGuard, RequireSpaceOrgGuard)
+@RequireOrgAdminOrOwner()
+@Roles(RoleType.VIEWER) // minimum global role
+createTask(@Body() dto: CreateTaskDto, @CurrentUser() user: any) {
+  // Only org admins/owners in a space (child org) can create tasks there
 }
 ```
 
 #### Task Access Rules
 
-- **Owners**: Can view/edit all tasks in their organization + sub-organizations
-- **Admins**: Can view/edit all tasks within their organization level
-- **Viewers**: Can only view/edit their own tasks
+Task permissions are enforced both at the controller (guards) and in `TasksService`:
+
+- **Tasks only exist in spaces (child orgs)** – attempts to create or operate on tasks in parent orgs are rejected.
+- **Owners/Admins**:
+  - Can view and update any task in spaces where they have effective role (direct or inherited from the parent site).
+  - Can delete tasks in those spaces (subject to service-level checks).
+- **Viewers**:
+  - Can only see or update their own tasks in orgs where they are a member.
+  - Cannot create or delete tasks.
+
+Role inheritance is resolved by `EffectiveRoleService`, which walks up the org tree (site → spaces) to compute the effective role per org.
 
 #### Implementation Details
 
-**RBAC Service**
+**EffectiveRoleService (org-scoped roles)**
 ```typescript
 @Injectable()
-export class RbacService {
-  hasRole(user: User, requiredRoles: RoleType[]): boolean
-  hasPermission(user: User, permission: string): boolean
-  hasRoleLevel(user: User, minimumLevel: number): boolean
+export class EffectiveRoleService {
+  async getEffectiveRole(userId: string, orgId: string): Promise<RoleType | null> {
+    // Direct membership check, then inherit from parent org if needed
+  }
+
+  async hasMinimumRole(userId: string, orgId: string, required: RoleType): Promise<boolean> {
+    const effective = await this.getEffectiveRole(userId, orgId);
+    return effective != null && getRoleLevel(effective) >= getRoleLevel(required);
+  }
 }
 ```
 
@@ -237,6 +295,14 @@ export class RbacService {
 - All actions logged with user, resource, action, and timestamp
 - Console logging for development, extensible for production
 - Audit logs accessible only to Owner/Admin roles
+
+#### Invitations & Memberships
+
+- **Invitations** are always scoped to a specific organization (site or space). Accepting an invite:
+  - Creates a membership row for the target org with the invited role.
+  - Updates effective org roles (including inheritance to child spaces where applicable).
+  - Logs an `INVITE_ACCEPTED` audit event with inviter, invitee, org, and role.
+- The frontend uses the `/auth/refresh` endpoint after invite acceptance or membership changes so JWT profile data (`org_roles`, `memberships`) stays in sync with the backend.
 
 ## 🔗 API Documentation
 
@@ -273,6 +339,204 @@ Register a new user account.
     }
 }
 ```
+
+### Organization Endpoints
+
+- `GET /organizations`
+  - Returns organizations (sites/spaces) where the current user is a member, ordered by **most recently created first**.
+- `POST /organizations`
+  - Creates a new top‑level organization (site) and grants the creator **Owner** role in that org.
+  - Response payload includes a refreshed access token and user profile so org roles/memberships are up to date on the frontend.
+- `GET /organizations/:orgId/children`
+  - Lists child orgs (spaces) for a given parent site.
+- `GET /organizations/:orgId/members`
+  - Returns effective members for an org (site or space); guarded by `OrgRoleGuard` and `@OrgRoles(Viewer, Admin, Owner)`.
+
+#### Details & Examples
+
+**GET /organizations**
+
+- Returns organizations (sites/spaces) where the current user is a member, ordered by **most recently created first**.
+
+**POST /organizations**
+
+- Creates a new top‑level organization (site) and grants the creator **Owner** role in that org.
+- Response payload includes a refreshed access token and user profile so org roles/memberships are up to date on the frontend.
+
+Sample request:
+
+```json
+{
+  "name": "Main Clinic",
+  "description": "Primary Turbovets workspace"
+}
+```
+
+Sample response:
+
+```json
+{
+  "organization": {
+    "id": "a1e4f9a2-1234-4cde-9abc-0123456789ab",
+    "name": "Main Clinic",
+    "description": "Primary Turbovets workspace",
+    "parentId": null,
+    "createdAt": "2026-03-05T10:15:23.456Z",
+    "updatedAt": "2026-03-05T10:15:23.456Z",
+    "owner": {
+      "id": "user-owner-123",
+      "email": "owner@turbovets.com",
+      "firstName": "Clinic",
+      "lastName": "Owner"
+    }
+  },
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "user-owner-123",
+    "email": "owner@turbovets.com",
+    "firstName": "Clinic",
+    "lastName": "Owner",
+    "role": "user",
+    "isActive": true,
+    "createdAt": "2026-03-01T09:00:00.000Z",
+    "updatedAt": "2026-03-05T10:15:23.456Z",
+    "org_roles": {
+      "a1e4f9a2-1234-4cde-9abc-0123456789ab": "owner"
+    },
+    "memberships": [
+      {
+        "organizationId": "a1e4f9a2-1234-4cde-9abc-0123456789ab",
+        "organizationName": "Main Clinic",
+        "role": "owner"
+      }
+    ]
+  }
+}
+```
+
+**GET /organizations/:orgId**
+
+- Returns a single organization by id (site or space) if the current user has at least viewer role there.
+
+**PUT /organizations/:orgId**
+
+- Updates organization name/description. Only **Owner** of that org can update.
+
+Sample request:
+
+```json
+ {
+        "id": "1559c259-f92f-4949-a875-93775ebbc064",
+        "name": "Local clinic 1",
+        "description": null,
+        "parentId": null,
+        "createdAt": "2026-03-06T14:28:16.229Z",
+        "updatedAt": "2026-03-06T14:28:16.229Z",
+        "owner": {
+            "id": "ad45b68c-5d4c-492a-b911-5d7c4fd3c614",
+            "email": "joe@negro.com",
+            "firstName": "Joe",
+            "lastName": "Negro"
+        }
+    }
+```
+
+**DELETE /organizations/:orgId**
+
+- Deletes an organization and all its descendants (spaces). Only **Owner** can delete.
+
+**GET /organizations/:orgId/children**
+
+- Lists child orgs (spaces) for a given parent site.
+
+**POST /organizations/:orgId/children**
+
+- Creates a new **space** (child org) under the given parent site. Requires Admin/Owner on the parent.
+
+Sample request:
+
+```json
+{
+  "name": "Surgery Space",
+  "description": "Tasks and projects for surgery team"
+}
+```
+
+Sample response:
+
+```json
+{
+    "id": "4656ba8b-ce2b-464b-806f-701b5586a33c",
+    "name": "gaga org child",
+    "description": null,
+    "parentId": "abfc2737-dd08-435a-b5d1-831a811a599c",
+    "createdAt": "2026-03-06T15:18:19.038Z",
+    "updatedAt": "2026-03-06T15:18:19.038Z"
+}
+```
+
+**GET /organizations/:orgId/members**
+
+- Returns effective members for an org (site or space); guarded by `OrgRoleGuard` and `@OrgRoles(Viewer, Admin, Owner)`.
+
+Sample response:
+
+```json
+[
+  {
+    "userId": "user-owner-123",
+    "email": "owner@turbovets.com",
+    "fullName": "Clinic Owner",
+    "role": "owner",
+    "joinedAt": "2026-03-05T10:15:23.456Z"
+  },
+  {
+    "userId": "user-admin-456",
+    "email": "admin@turbovets.com",
+    "fullName": "Space Admin",
+    "role": "admin",
+    "joinedAt": "2026-03-05T11:05:00.000Z"
+  }
+]
+```
+
+**DELETE /organizations/:orgId/members/:userId**
+
+- Revokes a membership from an org. Rules:
+  - Viewer can revoke only themselves.
+  - Admin can revoke viewers or themselves (not the owner or another admin).
+  - Owner can revoke admins and viewers (not another owner).
+- Returns `204 No Content` on success.
+
+**PUT /organizations/:orgId/members/:userId/role**
+
+- Updates a member’s role within an org (to `admin` or `viewer`). Only **Owner** of the org can perform this.
+
+Sample request:
+
+```json
+{
+  "role": "admin"
+}
+```
+
+Sample response:
+
+```json
+{
+  "role": "admin"
+}
+```
+
+### Invitation Endpoints
+
+- `POST /invitations`
+  - Creates an invitation for a given `organizationId` and role (viewer/admin/owner) for a target email.
+  - Sends an email via the configured mail provider, and logs an `INVITE_SENT` audit event.
+- `GET /invitations/validate?token=...`
+  - Validates an invite token (email match, expiry, org) to power the register/join flow.
+- `POST /invitations/accept`
+  - Accepts an invitation, creates membership, updates org roles, and logs `INVITE_ACCEPTED`.
 
 #### POST /auth/login
 Authenticate user and receive JWT token.
@@ -436,7 +700,7 @@ Bulk update tasks (for drag-and-drop reordering).
 
 ### Audit Endpoints
 
-#### GET /audit-log
+#### GET /audit-log?organizationId=6ae6bbbb.....
 View access logs (Owner/Admin only).
 
 **Query Parameters:**
@@ -464,7 +728,8 @@ View access logs (Owner/Admin only).
             "timestamp": "2026-03-06T14:28:58.966Z",
             "success": true,
             "errorMessage": null,
-          }
+            "actionDescription": "Create Task"
+        },
           ]
 }
 ```
@@ -619,6 +884,7 @@ npm run api:build
 npm run api:serve
 ```
 Backend runs on http://localhost:3000
+API documentation available at `http://localhost:3000/api`
 
 3. **Start the frontend (Angular Dashboard):**
 ```bash
@@ -719,6 +985,9 @@ These ideas extend the current feature set (org hierarchy, org-scoped roles, tas
 - **Lightweight task relationships** (e.g. blocked‑by / relates‑to) to support cross‑space coordination.
 
 ### Security & Observability
+- **JWT refresh tokens** for rotating access tokens while keeping sessions alive securely.
+- **CSRF protection** for state‑changing browser requests (especially if cookies are used for auth).
+- **RBAC caching** (e.g. via Redis) so expensive permission checks are evaluated once and reused safely.
 - **Stronger auth hardening**: password policies, optional MFA, and rate limiting on auth endpoints.
 - **Richer audit events and metrics** around role changes, membership revocation, and failed org/task mutations.
 
