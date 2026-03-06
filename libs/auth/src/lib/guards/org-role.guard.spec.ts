@@ -8,12 +8,16 @@ describe('OrgRoleGuard', () => {
   let guard: OrgRoleGuard;
   let reflector: Reflector;
 
-  const createContext = (request: { user?: any; params?: any; body?: any }): ExecutionContext =>
+  const createContext = (request: {
+    user?: any;
+    params?: any;
+    body?: any;
+  }): ExecutionContext =>
     ({
       switchToHttp: () => ({ getRequest: () => request }),
       getHandler: () => ({}),
       getClass: () => ({}),
-    }) as any;
+    } as any);
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -47,9 +51,14 @@ describe('OrgRoleGuard', () => {
 
   it('should throw when organization context (orgId) is missing', () => {
     (reflector.get as jest.Mock).mockReturnValue([RoleType.VIEWER]);
-    const ctx = createContext({ user: { id: 'u1', org_roles: {} }, params: {} });
+    const ctx = createContext({
+      user: { id: 'u1', org_roles: {} },
+      params: {},
+    });
     expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
-    expect(() => guard.canActivate(ctx)).toThrow('Organization context required');
+    expect(() => guard.canActivate(ctx)).toThrow(
+      'Organization context required'
+    );
   });
 
   it('should throw when user has no access to the org (missing org_roles[orgId])', () => {
@@ -59,7 +68,9 @@ describe('OrgRoleGuard', () => {
       params: { orgId: 'org-1' },
     });
     expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
-    expect(() => guard.canActivate(ctx)).toThrow('No access to this organization');
+    expect(() => guard.canActivate(ctx)).toThrow(
+      'No access to this organization'
+    );
   });
 
   it('should allow when user has required role (viewer) in org', () => {
@@ -81,7 +92,10 @@ describe('OrgRoleGuard', () => {
   });
 
   it('should throw when user has lower role (viewer) than required (admin)', () => {
-    (reflector.get as jest.Mock).mockReturnValue([RoleType.ADMIN, RoleType.OWNER]);
+    (reflector.get as jest.Mock).mockReturnValue([
+      RoleType.ADMIN,
+      RoleType.OWNER,
+    ]);
     const ctx = createContext({
       user: { id: 'u1', org_roles: { 'org-1': RoleType.VIEWER } },
       params: { orgId: 'org-1' },
@@ -101,7 +115,10 @@ describe('OrgRoleGuard', () => {
   });
 
   it('should read orgId from query.organizationId when param and body not present', () => {
-    (reflector.get as jest.Mock).mockReturnValue([RoleType.ADMIN, RoleType.OWNER]);
+    (reflector.get as jest.Mock).mockReturnValue([
+      RoleType.ADMIN,
+      RoleType.OWNER,
+    ]);
     const ctx = createContext({
       user: { id: 'u1', org_roles: { 'org-1': RoleType.OWNER } },
       params: {},

@@ -78,7 +78,8 @@ export class UserQueryDto {
 
   @IsOptional()
   @IsString()
-  sortBy?: 'createdAt' | 'updatedAt' | 'firstName' | 'lastName' | 'email' = 'createdAt';
+  sortBy?: 'createdAt' | 'updatedAt' | 'firstName' | 'lastName' | 'email' =
+    'createdAt';
 
   @IsOptional()
   @IsString()

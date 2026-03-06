@@ -47,7 +47,7 @@ import { InitialsAvatarComponent } from '../shared/components/initials-avatar.co
               class="text-xs font-semibold text-gray-500 uppercase tracking-wider"
               >Spaces</span
             >
-           
+
             <div class="flex items-center gap-0.5">
               <button
                 type="button"
@@ -71,7 +71,6 @@ import { InitialsAvatarComponent } from '../shared/components/initials-avatar.co
                 </svg>
               </button>
             </div>
-            
           </div>
           <!-- Expand-down menu (inline, not overlay) -->
           @if (spacesMenuOpen()) {

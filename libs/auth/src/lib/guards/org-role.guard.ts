@@ -35,10 +35,11 @@ export class OrgRoleGuard implements CanActivate {
     if (!orgId) throw new ForbiddenException('Organization context required');
 
     const userOrgRole = user.org_roles?.[orgId] as RoleType | undefined;
-    if (!userOrgRole) throw new ForbiddenException('No access to this organization');
+    if (!userOrgRole)
+      throw new ForbiddenException('No access to this organization');
 
     const userLevel = getRoleLevel(userOrgRole);
-    const minLevel = Math.min(...requiredRoles.map((r) => getRoleLevel(r)));
+    const minLevel = Math.min(...requiredRoles.map(r => getRoleLevel(r)));
     if (userLevel < minLevel)
       throw new ForbiddenException('Insufficient role in this organization');
 

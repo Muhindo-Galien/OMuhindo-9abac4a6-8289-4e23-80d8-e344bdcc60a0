@@ -23,7 +23,7 @@ import { CommonModule } from '@angular/common';
 })
 export class OrgListEmptyComponent {
   message = input('You\'re not part of any organization yet.');
-  createLabel = input('Create a new site');
+  createLabel = input('Create a new organization');
 
   createClick = output<void>();
 }

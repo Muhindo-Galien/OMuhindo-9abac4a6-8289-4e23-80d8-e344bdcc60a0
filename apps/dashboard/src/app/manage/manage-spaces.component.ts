@@ -167,7 +167,7 @@ type ManageTab = 'organization' | 'spaces' | 'members' | 'invitations';
         }
 
         <!-- Tab: Spaces -->
-        @if (activeTab() === 'spaces') {
+        @if (canViewSpacesTab() && activeTab() === 'spaces') {
         <section class="bg-white rounded-xl border border-gray-200 p-6">
           <div class="flex items-center justify-between mb-4">
             <h2 class="text-lg font-semibold text-gray-900">Spaces</h2>
@@ -585,7 +585,11 @@ export class ManageSpacesComponent implements OnInit {
   /** Set to userId while a role update request is in flight. */
   memberRoleUpdating = signal<string | null>(null);
 
-  private parentId = computed(() => this.orgContext.getEffectiveParentId());
+  /** Org id that Manage page treats as the root for this session:
+   * - if user has any role on the parent site, use parent (can manage spaces),
+   * - otherwise, fall back to the currently selected org (e.g. child-only admin).
+   */
+  private parentId = computed(() => this.getManageOrgId());
 
   /** Options for org selector: parent org plus its spaces (for invite target, members view, invitations view). */
   inviteTargetOptions = computed(() => {
@@ -616,6 +620,30 @@ export class ManageSpacesComponent implements OnInit {
 
   ngOnInit(): void {
     this.load();
+  }
+
+  private getManageOrgId(): string | null {
+    const current = this.orgContext.getCurrentOrg();
+    if (!current) return null;
+    const user = this.authService.getCurrentUser();
+    if (!user) return current.parentId ?? current.id;
+
+    const resolveRole = (orgId: string | undefined): RoleType | null => {
+      if (!orgId) return null;
+      return (
+        user.org_roles?.[orgId] ??
+        user.memberships?.find(m => m.organizationId === orgId)?.role ??
+        null
+      );
+    };
+
+    const parentRole = resolveRole(current.parentId);
+    const currentRole = resolveRole(current.id);
+
+    // Prefer parent when user has a role there; otherwise fall back to the current (child) org.
+    if (parentRole) return current.parentId!;
+    if (currentRole) return current.id;
+    return current.parentId ?? current.id;
   }
 
   load(): void {
@@ -687,6 +715,17 @@ export class ManageSpacesComponent implements OnInit {
     );
   }
 
+  /** Only show the Spaces tab when the user can actually manage spaces on the site (admin/owner on real parent org). */
+  canViewSpacesTab(): boolean {
+    const current = this.orgContext.getCurrentOrg();
+    if (!current) return false;
+    const parentId = current.parentId ?? current.id;
+    return (
+      this.hasRole(parentId, RoleType.ADMIN) ||
+      this.hasRole(parentId, RoleType.OWNER)
+    );
+  }
+
   canEditSpace(orgId: string): boolean {
     return this.hasRole(orgId, RoleType.OWNER);
   }
@@ -709,16 +748,23 @@ export class ManageSpacesComponent implements OnInit {
   }
 
   canInvite(): boolean {
+    // Admin/owner can invite into whichever org is currently selected in the invite form.
+    const targetOrgId =
+      (this.inviteForm?.value['organizationId'] as string | undefined) ??
+      this.parentId();
+    if (!targetOrgId) return false;
     return (
-      this.hasRole(this.parentId(), RoleType.ADMIN) ||
-      this.hasRole(this.parentId(), RoleType.OWNER)
+      this.hasRole(targetOrgId, RoleType.ADMIN) ||
+      this.hasRole(targetOrgId, RoleType.OWNER)
     );
   }
 
   canViewInvitations(): boolean {
+    // Admin/owner can view invitations for the currently selected org (parent or a specific space).
+    const orgId = this.invitationsOrgId() ?? this.parentId();
+    if (!orgId) return false;
     return (
-      this.hasRole(this.parentId(), RoleType.ADMIN) ||
-      this.hasRole(this.parentId(), RoleType.OWNER)
+      this.hasRole(orgId, RoleType.ADMIN) || this.hasRole(orgId, RoleType.OWNER)
     );
   }
 
@@ -800,9 +846,21 @@ export class ManageSpacesComponent implements OnInit {
       this.spaceModalLoading.set(true);
       this.orgService.createChildOrganization(parentId, value).subscribe({
         next: () => {
-          this.loadSpaces();
-          this.closeSpaceModal();
-          this.spaceModalLoading.set(false);
+          // After creating a new space, refresh auth/session so org_roles includes the new space
+          // (roles are computed from memberships + org hierarchy on the server).
+          this.authService.refresh().subscribe({
+            next: () => {
+              this.loadSpaces();
+              this.closeSpaceModal();
+              this.spaceModalLoading.set(false);
+            },
+            error: () => {
+              // Even if refresh fails, keep UX responsive; server-side guards remain authoritative.
+              this.loadSpaces();
+              this.closeSpaceModal();
+              this.spaceModalLoading.set(false);
+            },
+          });
         },
         error: err => {
           this.spaceModalError.set(err?.error?.message ?? 'Failed to create.');
@@ -823,8 +881,17 @@ export class ManageSpacesComponent implements OnInit {
       return;
     this.orgService.deleteOrganization(org.id).subscribe({
       next: () => {
-        this.orgContext.clearCurrentOrg();
-        window.location.href = '/orgs';
+        // Refresh auth profile so org_roles and memberships drop the deleted org.
+        this.authService.refresh().subscribe({
+          next: () => {
+            this.orgContext.clearCurrentOrg();
+            window.location.href = '/orgs';
+          },
+          error: () => {
+            this.orgContext.clearCurrentOrg();
+            window.location.href = '/orgs';
+          },
+        });
       },
       error: err => alert(err?.error?.message ?? 'Failed to delete.'),
     });
@@ -834,7 +901,13 @@ export class ManageSpacesComponent implements OnInit {
     if (!confirm(`Delete space "${space.name}"? This cannot be undone.`))
       return;
     this.orgService.deleteOrganization(space.id).subscribe({
-      next: () => this.loadSpaces(),
+      next: () => {
+        // Refresh auth profile so org_roles and memberships reflect removed space.
+        this.authService.refresh().subscribe({
+          next: () => this.loadSpaces(),
+          error: () => this.loadSpaces(),
+        });
+      },
       error: err => alert(err?.error?.message ?? 'Failed to delete.'),
     });
   }
@@ -842,8 +915,25 @@ export class ManageSpacesComponent implements OnInit {
   revokeMember(userId: string): void {
     const orgId = this.membersOrgId() ?? this.parentId();
     if (!orgId || !confirm('Remove this member from the organization?')) return;
+    const isSelf = userId === this.currentUserId();
     this.orgService.revokeMember(orgId, userId).subscribe({
-      next: () => this.loadMembers(),
+      next: () => {
+        if (isSelf) {
+          // If user revoked their own membership, refresh auth profile and redirect.
+          this.authService.refresh().subscribe({
+            next: () => {
+              this.orgContext.clearCurrentOrg();
+              window.location.href = '/orgs';
+            },
+            error: () => {
+              this.orgContext.clearCurrentOrg();
+              window.location.href = '/orgs';
+            },
+          });
+        } else {
+          this.loadMembers();
+        }
+      },
       error: err => alert(err?.error?.message ?? 'Failed to remove.'),
     });
   }

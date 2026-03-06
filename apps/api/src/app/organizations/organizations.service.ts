@@ -125,6 +125,10 @@ export class OrganizationsService {
       );
       result.push(this.toDto(m.organization, owner));
     }
+    result.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
     return result;
   }
 
@@ -187,10 +191,8 @@ export class OrganizationsService {
     const org = await this.orgRepository.findOne({ where: { id: orgId } });
     if (!org) throw new NotFoundException('Organization not found');
 
-    // Delete all descendants first (children, then their children, then parent)
-    await this.deleteDescendants(orgId);
-    await this.orgRepository.remove(org);
-
+    // Log the delete action before removing the organization so the FK from audit_logs
+    // to organizations is still satisfied when inserting the audit record.
     await this.auditService.logAction(
       userId,
       AuditAction.DELETE,
@@ -202,6 +204,10 @@ export class OrganizationsService {
         success: true,
       }
     );
+
+    // Delete all descendants first (children, then their children, then parent)
+    await this.deleteDescendants(orgId);
+    await this.orgRepository.remove(org);
   }
 
   async findChildren(

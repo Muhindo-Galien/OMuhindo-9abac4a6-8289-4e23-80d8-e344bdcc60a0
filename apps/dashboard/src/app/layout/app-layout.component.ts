@@ -127,9 +127,20 @@ export class AppLayoutComponent {
     this.createLoading.set(true);
     this.createError.set(null);
     this.orgService.createChildOrganization(parentId, value).subscribe({
-      next: (org) => {
-        this.closeCreateChildModal();
-        this.sidebarRef()?.loadChildren();
+      next: () => {
+        // After creating a new space, refresh auth/session so org_roles includes the new space
+        // (roles are computed from memberships + org hierarchy on the server).
+        this.authService.refresh().subscribe({
+          next: () => {
+            this.closeCreateChildModal();
+            this.sidebarRef()?.loadChildren();
+          },
+          error: () => {
+            // Even if refresh fails, keep UX responsive; server-side guards remain authoritative.
+            this.closeCreateChildModal();
+            this.sidebarRef()?.loadChildren();
+          },
+        });
       },
       error: (err) => {
         this.createError.set(err?.error?.message ?? 'Failed to create space.');

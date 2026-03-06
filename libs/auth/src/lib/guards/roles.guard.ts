@@ -30,7 +30,7 @@ export class RolesGuard implements CanActivate {
 
     // Minimum level needed: e.g. [ADMIN] => 1, so OWNER (2) or ADMIN (1) pass
     const minRequiredLevel = Math.min(
-      ...requiredRoles.map((r) => getRoleLevel(r))
+      ...requiredRoles.map(r => getRoleLevel(r))
     );
 
     // 1) Check global user.role (JWT often has role: 'user' = viewer level)
@@ -43,7 +43,7 @@ export class RolesGuard implements CanActivate {
     if (orgRoles && typeof orgRoles === 'object') {
       const maxOrgLevel = Math.max(
         -1,
-        ...Object.values(orgRoles).map((r) => getRoleLevel(r))
+        ...Object.values(orgRoles).map(r => getRoleLevel(r))
       );
       if (maxOrgLevel >= minRequiredLevel) return true;
     }

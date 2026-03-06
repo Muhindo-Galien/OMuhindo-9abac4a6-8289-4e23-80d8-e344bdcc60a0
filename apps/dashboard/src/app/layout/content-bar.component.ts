@@ -134,14 +134,34 @@ export class ContentBarComponent implements OnInit {
     return role === RoleType.ADMIN || role === RoleType.OWNER;
   }
 
-  /** Same as sidebar: show Manage tab only if user can manage spaces (admin/owner on site). */
+  /**
+   * Show Manage tab when user can manage something in this org context:
+   * - admin/owner on the effective parent site (can manage spaces), OR
+   * - admin/owner on the currently selected org (e.g. child/space admin managing members/invitations).
+   */
   canCreateChild(): boolean {
     const parentId = this.orgContext.getEffectiveParentId();
-    if (!parentId) return false;
+    const currentId = this.orgContext.getCurrentOrgId();
     const user = this.authService.getCurrentUser();
-    const role =
-      user?.org_roles?.[parentId] ??
-      user?.memberships?.find(m => m.organizationId === parentId)?.role;
-    return role === RoleType.ADMIN || role === RoleType.OWNER;
+    if (!user) return false;
+
+    const resolveRole = (orgId: string | null | undefined) => {
+      if (!orgId) return null;
+      return (
+        user.org_roles?.[orgId] ??
+        user.memberships?.find(m => m.organizationId === orgId)?.role ??
+        null
+      );
+    };
+
+    const parentRole = resolveRole(parentId);
+    const currentRole = resolveRole(currentId);
+
+    return (
+      parentRole === RoleType.ADMIN ||
+      parentRole === RoleType.OWNER ||
+      currentRole === RoleType.ADMIN ||
+      currentRole === RoleType.OWNER
+    );
   }
 }

@@ -26,9 +26,15 @@ export interface LocalStrategyResult {
 
 export interface IAuthService {
   validateUser(email: string, password: string): Promise<any>;
-  login(user: any, orgRoles?: Record<string, RoleType>): Promise<{ access_token: string }>;
+  login(
+    user: any,
+    orgRoles?: Record<string, RoleType>
+  ): Promise<{ access_token: string }>;
   register(userData: any): Promise<any>;
-  generateJwtPayload(user: any, orgRoles?: Record<string, RoleType>): JwtStrategyPayload;
+  generateJwtPayload(
+    user: any,
+    orgRoles?: Record<string, RoleType>
+  ): JwtStrategyPayload;
   hashPassword(password: string): Promise<string>;
   comparePassword(password: string, hashedPassword: string): Promise<boolean>;
 }

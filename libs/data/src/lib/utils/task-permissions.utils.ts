@@ -24,7 +24,9 @@ const NO_TASK_PERMISSIONS: TaskPermissions = {
  * Use with the current user's role in the current space (from org_roles or memberships).
  * Every role can read and update tasks (viewers update own only, enforced in backend); only admin/owner can create or delete.
  */
-export function getTaskPermissionsByRole(role: RoleType | null | undefined): TaskPermissions {
+export function getTaskPermissionsByRole(
+  role: RoleType | null | undefined
+): TaskPermissions {
   if (role == null) return NO_TASK_PERMISSIONS;
   return {
     canCreate: role === RoleType.ADMIN || role === RoleType.OWNER,
