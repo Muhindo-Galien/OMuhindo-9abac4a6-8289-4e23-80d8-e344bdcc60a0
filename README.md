@@ -280,26 +280,27 @@ Authenticate user and receive JWT token.
 **Request:**
 ```json
 {
-  "email": "user@example.com",
-  "password": "password123"
+  "email":"joe@negro.com",
+  "password":"Test@123"
 }
 ```
 
 **Response:**
 ```json
 {
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "user": {
-    "id": "fe37473c-e9e6-4e96-b2fc-310325b9235c",
-    "email": "owner@turbovets.com",
-    "firstName": "Owner",
-    "lastName": "Turbovets",
-    "role": "owner",
-    "organizationId": "4ed2265b-c65d-462e-ac02-f9e55e7bbb61",
-    "isActive": true,
-    "createdAt": "2025-08-07T23:19:08.881Z",
-    "updatedAt": "2025-08-07T23:19:08.881Z"
-  }
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.....",
+    "user": {
+        "id": "ad45b68c-5d4c-492a-b911-5d7c4fd3c614",
+        "email": "joe@negro.com",
+        "firstName": "Joe",
+        "lastName": "Negro",
+        "role": "user",
+        "isActive": true,
+        "createdAt": "2026-03-06T14:21:02.957Z",
+        "updatedAt": "2026-03-06T14:21:02.957Z",
+        "org_roles": {},
+        "memberships": []
+    }
 }
 ```
 
@@ -447,20 +448,25 @@ View access logs (Owner/Admin only).
 
 **Response:**
 ```json
-[
-  {
-    "id": "uuid",
-    "action": "create",
-    "resource": "task", 
-    "details": "Created task: Complete documentation",
-    "userId": "uuid",
-    "user": {
-      "firstName": "John",
-      "lastName": "Doe"
-    },
-    "createdAt": "2024-01-01T00:00:00.000Z"
-  }
-]
+{
+    "data": [
+        {
+            "id": "37daf035-bd35-44f1-9793-d4933ab75551",
+            "userId": "ad45b68c-5d4c-492a-b911-5d7c4fd3c614",
+            "userEmail": "joe@negro.com",
+            "userFullName": "Joe Negro",
+            "organizationId": "6ae6bbbb-b289-481a-94ed-d5826e845e28",
+            "action": "create",
+            "resource": "task",
+            "resourceId": "bf6d8fee-f66e-4d3d-92ba-330850d93e8b",
+            "ipAddress": null,
+            "userAgent": null,
+            "timestamp": "2026-03-06T14:28:58.966Z",
+            "success": true,
+            "errorMessage": null,
+          }
+          ]
+}
 ```
 
 ## Frontend Features

@@ -115,6 +115,25 @@ import { AuditLogResponseDto, RoleType } from '@data';
           <!-- List view: same layout as task list (scrollable rows) -->
           <div class="audit-list-scroll mt-6 rounded-lg border border-gray-200 bg-white overflow-hidden">
             <div class="audit-list-inner overflow-x-auto">
+              <!-- Header row -->
+              <div class="audit-list-row bg-gray-50 font-medium text-gray-700">
+                <div class="audit-list-cell audit-list-cell-action">
+                  <span class="text-xs uppercase tracking-wide">Action</span>
+                </div>
+                <div class="audit-list-cell audit-list-cell-resource">
+                  <span class="text-xs uppercase tracking-wide">Resource</span>
+                </div>
+                <div class="audit-list-cell audit-list-cell-description">
+                  <span class="text-xs uppercase tracking-wide">Description</span>
+                </div>
+                <div class="audit-list-cell audit-list-cell-user">
+                  <span class="text-xs uppercase tracking-wide">User</span>
+                </div>
+                <div class="audit-list-cell audit-list-cell-time">
+                  <span class="text-xs uppercase tracking-wide">Time</span>
+                </div>
+              </div>
+
               @for (log of auditLogs; track log.id) {
                 <div class="audit-list-row">
                   <div class="audit-list-cell audit-list-cell-action">
@@ -125,8 +144,16 @@ import { AuditLogResponseDto, RoleType } from '@data';
                   <div class="audit-list-cell audit-list-cell-resource">
                     <span class="audit-list-text" [title]="log.resource">{{ log.resource }}</span>
                   </div>
+                  <div class="audit-list-cell audit-list-cell-description">
+                    <span class="audit-list-text" [title]="log.actionDescription">
+                      {{ log.actionDescription }}
+                    </span>
+                  </div>
                   <div class="audit-list-cell audit-list-cell-user">
-                    <span class="audit-list-text" [title]="log.userEmail">{{ log.userEmail }}</span>
+                    <span class="audit-list-text" [title]="log.userFullName">
+                      {{ log.userFullName }}
+                    </span>
+                    
                     @if (log.ipAddress) {
                       <span class="audit-list-meta">IP: {{ log.ipAddress }}</span>
                     }
@@ -185,6 +212,7 @@ import { AuditLogResponseDto, RoleType } from '@data';
       .audit-list-cell-action { width: 6rem; min-width: 6rem; }
       .audit-list-badge { @apply text-xs font-medium px-2 py-0.5 rounded; }
       .audit-list-cell-resource { width: 6rem; min-width: 6rem; }
+      .audit-list-cell-description { width: 18rem; min-width: 18rem; }
       .audit-list-cell-user { width: 11rem; min-width: 11rem; flex-direction: column; align-items: flex-start; }
       .audit-list-meta { @apply text-xs text-gray-500; }
       .audit-list-cell-time { width: 11rem; min-width: 11rem; }
